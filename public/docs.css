@@ -1,0 +1,78 @@
+/* Shared stylesheet for the static pages — faq, privacy, terms, download, blog.
+   One site chrome across all of them (full-width nav + footer, matching the
+   landing), a centered content column, and plain native page scroll so the
+   scrollbar sits at the right edge of the window. */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: Georgia, serif;
+  background: #f5f2eb;
+  color: #1f1f1f;
+  font-size: 14px;
+  line-height: 1.8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Shared site header (identical to the landing nav) ─────────────────── */
+.site-nav {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 clamp(20px, 4vw, 40px); height: 54px;
+  border-bottom: 1px solid #ddd6c9;
+}
+.site-nav .brand { font-size: 16px; font-style: italic; color: #8a847a; letter-spacing: -0.02em; text-decoration: none; }
+.site-nav .brand:hover { color: #111; }
+.site-nav .signin { font-family: Georgia, serif; font-style: italic; font-size: 13px; color: #8a847a; text-decoration: none; }
+.site-nav .signin:hover { color: #111; }
+
+/* ── Full-width scroll area (scrollbar at the window edge) with a
+      centered content column inside, exactly like the landing. ─────────── */
+.scrollarea { flex: 1; overflow-y: auto; }
+main.content { max-width: 620px; margin: 0 auto; padding: 40px 24px 64px; }
+
+.eyebrow { font-size: 11px; color: #888; font-style: italic; margin-top: 4px; }
+
+h1 { font-size: 24px; font-weight: normal; color: #111; letter-spacing: -0.02em; }
+h2 { font-size: 13px; font-weight: bold; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 48px; margin-bottom: 20px; }
+h3 { font-size: 14px; font-weight: bold; color: #111; margin-top: 28px; margin-bottom: 6px; }
+
+p  { margin-bottom: 12px; color: #444; }
+a  { color: #111; }
+ul { margin: 0 0 12px 20px; color: #444; }
+li { margin-bottom: 6px; }
+
+code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: #ece7dc;
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+/* FAQ contents list. */
+nav.toc { margin: 4px 0 8px; }
+nav.toc a {
+  display: inline-block;
+  font-size: 13px;
+  color: #666;
+  text-decoration: none;
+  margin: 0 16px 8px 0;
+}
+nav.toc a:hover { color: #111; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Shared site footer (identical to the landing) ─────────────────────── */
+.site-footer {
+  flex-shrink: 0;
+  border-top: 1px solid #ddd6c9;
+  padding: 16px clamp(20px, 4vw, 40px);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 11px;
+}
+.site-footer a { color: #a8a091; text-decoration: none; font-style: italic; }
+.site-footer a:hover { color: #111; }
+.site-footer .dot { color: #ccc; }

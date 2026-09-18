@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FAQ | oodbo | forward-only distraction free writing</title>
+  <meta name="description" content="Common questions about oodbo, the forward-only writing app — how Forward Mode works, cloud sync, payment, the desktop app, and the Word add-in." />
+  <link rel="stylesheet" href="/docs.css"/>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a class="brand" href="/">oodbo.io</a>
+  <a class="signin" href="/">sign in</a>
+</nav>
+
+<div class="scrollarea">
+<main class="content">
+
+<h1>Frequently Asked Questions</h1>
+
+<nav class="toc">
+  <a href="#saving-sync">Saving &amp; Sync</a>
+  <a href="#account">Account</a>
+  <a href="#word-add-in">Word Add-in</a>
+  <a href="#writing">Writing</a>
+  <a href="#oodbo-files">oodbo Files</a>
+</nav>
+
+
+<h2 id="saving-sync">Saving &amp; Sync</h2>
+
+<h3>Does oodbo save my work automatically?</h3>
+<p>Yes. When you're signed in, every change is saved to your device instantly, and your active project is pushed to your private cloud storage (Google Drive or OneDrive) whenever you've made edits — at most once per minute. Nothing is lost between a keystroke and the cloud push.</p>
+<p>If you're trying oodbo as a guest — writing in the browser without an account — your draft is kept only for the current browser session and is never uploaded. It does <em>not</em> carry over to an account when you sign in, so copy your text out before you close the tab or sign up, or it's gone. (The sign-in screen gives you a one-click button to copy your guest writing first.)</p>
+
+<h3>What if I'm working without an internet connection?</h3>
+<p>oodbo works fully offline. Edits save to your device immediately. A banner shows that you're offline — your writing is saved on this device and will sync when you reconnect. When your connection returns, any edits made while offline are automatically pushed to the cloud.</p>
+
+<h3>I have oodbo open on my laptop and my phone. Which version wins?</h3>
+<p>Only the device that has been <em>edited</em> will push to the cloud. An idle device — open but not being written in — will never overwrite the cloud with a stale version. When you return to the idle device, it silently checks whether the cloud is newer and pulls the latest in the background. No action needed from you.</p>
+<p>The assumption is that you're actively writing on one device at a time. If you edit the same project on two devices simultaneously, see below.</p>
+
+<h3>What if I edited the same project on two devices that were both offline?</h3>
+<p>Nothing is lost. When the devices reconnect, oodbo notices the project was changed in two places since they last agreed — and instead of letting one overwrite the other, it keeps <em>both</em> as separate copies. You'll see a prompt asking which one to keep: the original, the second version, or both. You can review the two side by side first, and whichever you don't keep goes to the bin — where it can be restored — never straight to deletion.</p>
+<p>There's no automatic line-by-line merge; oodbo is built around one active editing session at a time. But a conflicting edit will never silently discard your work — you always get to choose.</p>
+
+<h3>Can my writing be used to train AI models?</h3>
+<p>No. oodbo never reads your writing or uses it to train anything. And your drafts aren't kept anywhere they could be scanned: with a Google or Microsoft account they sync only to your own private app folder, and oodbo encrypts each project on your device before it uploads — so the copy stored in the cloud is ciphertext, not readable text. There's nothing there in plain form for a model to scan.</p>
+
+<h2 id="account">Account</h2>
+
+<h3>How do I sign in? There's no password field.</h3>
+<p>On the web, you sign in with your Google or Microsoft account — no password to create or remember, and it's the account your writing syncs to. (The desktop app and Word add-in can also sign you in by an emailed link.)</p>
+
+<h3>Do I need an account to use oodbo?</h3>
+<p>You can try it without one: guest mode lets you start writing in the browser right away, with copy-to-clipboard to take your text with you. A guest draft lasts only for the browser session, though — to keep projects, sync across devices, export, or share, you'll need oodbo, a one-time purchase tied to your Google or Microsoft account.</p>
+
+<h3>Can I be signed into two different oodbo accounts in the same browser?</h3>
+<p>Not simultaneously — one active session per browser. To work across two accounts at once, use a second browser or an incognito window.</p>
+
+<h3>If I sign out in one tab, does it sign me out everywhere?</h3>
+<p>Yes, across all open tabs in the same browser. Other devices are not affected — unless you choose to sign them out. From the projects page, you can view your active sessions and log out all other devices at once.</p>
+
+<h3>What can I do for free?</h3>
+<p>In the browser, guest mode is free with no time limit: the full writing environment — Forward mode, sections, notes — plus copy-to-clipboard whenever you like. It's built for trying oodbo, so a guest draft lives only for the browser session and isn't saved, synced, exported, or shareable.</p>
+<h3>What does buying oodbo add?</h3>
+<p>The full app: unlimited projects saved and synced to your own Google Drive or OneDrive, export and import, and the Word add-in. It's a one-time purchase — no subscription.</p>
+
+<h3>What if my purchase isn't showing up in my account?</h3>
+<p>Sign out and back in — paid status is checked at sign-in. If it still shows as unpaid after that, <a href="mailto:hello@oodbo.io">contact us</a> with your order confirmation and we'll sort it out.</p>
+
+<h3>How do I delete my account?</h3>
+<p>Email <a href="mailto:hello@oodbo.io">hello@oodbo.io</a> with the subject "Delete my account" and we'll remove your account and all associated data within 30 days.</p>
+
+<h3>How do I get in touch?</h3>
+<p>Email <a href="mailto:hello@oodbo.io">hello@oodbo.io</a>. We typically respond within 2 business days.</p>
+
+
+<h2 id="word-add-in">Word Add-in</h2>
+
+<h3>What is the oodbo Word add-in?</h3>
+<p>The add-in brings the forward-only constraint directly into Microsoft Word. If Word is where you work, you don't need to leave it — write forward inside your document, without the ability to delete or revise, and your draft lands exactly where your cursor is.</p>
+
+<h2 id="writing">Writing</h2>
+
+<h3>What is Forward mode?</h3>
+<p>A full-screen, distraction-free writing overlay. Only the last five words you've typed are visible; everything before fades out. You can't delete, arrow back, or undo — only write forward. Press <code>ctrl+enter</code> to send your writing back to the editor, or <code>esc</code> to discard.</p>
+
+<h2 id="oodbo-files">oodbo Files</h2>
+
+<h3>What is an .oodbo file?</h3>
+<p>An .oodbo file is oodbo's native project format — a snapshot of your project including all sections, content, and notes. You can export one at any time as a backup, and import it back into oodbo.io to restore the project on any device. Export and import are paid features.</p>
+
+<h3>Is an .oodbo file the same as my cloud backup?</h3>
+<p>No. Cloud sync keeps your projects up to date automatically in the background. An .oodbo file is a manual export — useful if you want a local backup or to move a project between accounts.</p>
+
+</main>
+</div>
+
+<footer class="site-footer">
+  <a href="/privacy">privacy</a>
+  <span class="dot">·</span><a href="/terms">terms</a>
+  <span class="dot">·</span><a href="/faq">faq</a>
+  <span class="dot">·</span><a href="/blog">blog</a>
+  <span class="dot">·</span><a href="https://marketplace.microsoft.com/en-us/product/office/WA200011123" target="_blank" rel="noopener noreferrer">MS Word</a></footer>
+
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body { background:#f5f2eb; display:flex; flex-direction:column; align-items:center;
+         justify-content:center; min-height:100vh; margin:0; gap:26px; }
+  svg { overflow:visible; }
+  #mark, .letter { fill:none; stroke:#111; stroke-width:8; stroke-linecap:round; stroke-linejoin:round;
+                   stroke-opacity:0.78; }
+  .sfx { font-family:'Helvetica Neue', Arial, sans-serif; font-size:92px; fill:#111; fill-opacity:0.76; }
+  .speck { fill:#111; }
+  .cap { font-family:Georgia, serif; font-size:13px; color:#999; font-style:italic; }
+</style>
+</head>
+<body>
+  <svg width="600" height="300" viewBox="-70 -120 500 240">
+    <g id="specks"></g>
+    <path id="mark" d=""></path>
+    <path id="Ld" class="letter"></path><text id="Sd" class="sfx"></text>
+    <path id="Lb" class="letter"></path><text id="Sb" class="sfx"></text>
+    <path id="Lo" class="letter"></path><text id="So" class="sfx"></text>
+  </svg>
+
+<script>
+const mark = document.getElementById('mark');
+const letters = ['Ld','Lb','Lo'].map(id => document.getElementById(id));
+const sfx     = ['Sd','Sb','So'].map(id => document.getElementById(id));
+
+const r = 24, S = 2 * r, N = 220;
+const MHOLD = 0.82, YSCALE = 1.5, SEP_MAX = 12, PITCH = 2 * r + SEP_MAX;
+
+// The d, b, o travel from their spots in the word to the head of each stacked line.
+// Word spots continue the "oodbo" kerning: the right o sits at +off, then one PITCH per letter.
+const OFF = r + SEP_MAX / 2;
+const wordPos = [[OFF + PITCH, 0], [OFF + 2*PITCH, 0], [OFF + 3*PITCH, 0]];
+const rowPos  = [[96, -72], [96, 0], [96, 72]];
+
+const MANTRAS = [
+  ['one',  'eats',   'ptimal'],        // Done Beats Optimal
+  ['raft', 'efore',  'bsessing'],      // Draft Before Obsessing
+  ["on't", 'lock',   'utput'],         // Don't Block Output
+  ['raft', 'reathe', 'rganize'],       // Draft Breathe Organize
+];
+
+// ── oo ⇄ ∞ morph (inner hemispheres only, test8) ──
+function point(t, m) {
+  const c = Math.cos(t);
+  let cx, cy;
+  if (c >= 0) { cx =  r + r * Math.cos(2 * t); cy = r * Math.sin(2 * t); }
+  else        { cx = -r - r * Math.cos(2 * t); cy = r * Math.sin(2 * t); }
+  const den = 1 + Math.sin(t) * Math.sin(t);
+  const bx = S * c / den, by = S * Math.sin(t) * c / den * YSCALE;
+  const w = Math.sin(t) * Math.sin(t) * m;
+  return [ cx + w * (bx - cx), cy + w * (by - cy) ];
+}
+function buildMorph(m) {
+  let d = '';
+  for (let i = 0; i <= N; i++) { const [x, y] = point(i / N * 2 * Math.PI, m);
+    d += (i ? 'L' : 'M') + x.toFixed(2) + ' ' + y.toFixed(2) + ' '; }
+  mark.setAttribute('d', d + 'Z');
+}
+function circle(cx, cy, rad) {
+  let d = 'M ' + (cx + rad).toFixed(2) + ' ' + cy.toFixed(2) + ' ';
+  for (let i = 1; i <= 56; i++) { const a = i / 56 * 2 * Math.PI;
+    d += 'L ' + (cx + rad * Math.cos(a)).toFixed(2) + ' ' + (cy + rad * Math.sin(a)).toFixed(2) + ' '; }
+  return d + 'Z ';
+}
+function buildSeparated(sep) { const off = r + sep / 2; mark.setAttribute('d', circle(off, 0, r) + circle(-off, 0, r)); }
+
+// ── the three letters, centred at origin, placed by transform ──
+const stemUp = (x) => 'M ' + x + ' ' + r + ' L ' + x + ' ' + (-2 * r) + ' ';
+letters[0].setAttribute('d', circle(0, 0, r) + stemUp(r));    // d: bowl + right stem
+letters[1].setAttribute('d', circle(0, 0, r) + stemUp(-r));   // b: bowl + left stem
+letters[2].setAttribute('d', circle(0, 0, r));                // o
+
+const lerp = (a, b, u) => a + (b - a) * u;
+function place(u, suffixOp) {   // u: 0 = in the word, 1 = at the row heads
+  letters.forEach((L, i) => {
+    const x = lerp(wordPos[i][0], rowPos[i][0], u), y = lerp(wordPos[i][1], rowPos[i][1], u);
+    L.setAttribute('transform', 'translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ')');
+    const s = sfx[i];
+    s.setAttribute('x', (x + r + 8).toFixed(1));   // suffix trails the letter, on its baseline
+    s.setAttribute('y', (y + r).toFixed(1));
+    s.style.opacity = suffixOp;
+  });
+}
+function setMantra(i) { sfx.forEach((s, k) => s.textContent = MANTRAS[i][k]); }
+
+const easeIO = p => p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p + 2, 3) / 2;
+const clamp01 = v => Math.max(0, Math.min(1, v));
+
+// ── ambient flicker: a field of faint specks that twinkle at their own irregular rates ──
+const speckLayer = document.getElementById('specks');
+const specks = [];
+(function makeSpecks() {
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  for (let i = 0; i < 70; i++) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    el.setAttribute('class', 'speck');
+    el.setAttribute('cx', rnd(-64, 424).toFixed(1));
+    el.setAttribute('cy', rnd(-114, 114).toFixed(1));
+    el.setAttribute('r',  rnd(0.7, 2.3).toFixed(2));
+    speckLayer.appendChild(el);
+    // Two incommensurate rates beat against each other → irregular flicker, not a clean pulse.
+    specks.push({ el, f1: rnd(0.0011, 0.006), f2: rnd(0.0015, 0.009),
+                  p1: rnd(0, 6.28), p2: rnd(0, 6.28), max: rnd(0.08, 0.34) });
+  }
+})();
+function updateSpecks(t) {
+  for (const s of specks) {
+    let v = 0.5 + 0.5 * Math.sin(t * s.f1 + s.p1) * Math.sin(t * s.f2 + s.p2);
+    v = v * v * v;                       // spend most of the time dim, spike bright → flickery
+    s.el.setAttribute('opacity', (v * s.max).toFixed(3));
+  }
+}
+
+const SPLIT = 0.35, MDUR = 2600, NM = MANTRAS.length, FADE = 350;
+const T = { WORD:1400, IN:1900, MANTRA: NM*MDUR, OUT:1900 };
+let phase = 'WORD', start = null, curIdx = -1;
+
+function render(ph, p, e) {
+  if (ph === 'WORD') { buildSeparated(SEP_MAX); place(0, 0); return; }
+
+  if (ph === 'IN') {                                   // one gesture: oo closes→crosses, dbo flies out
+    const g = easeIO(p);
+    if (g < SPLIT) buildSeparated(SEP_MAX * (1 - g / SPLIT));
+    else           buildMorph(MHOLD * (g - SPLIT) / (1 - SPLIT));
+    if (curIdx !== 0) { setMantra(0); curIdx = 0; }
+    place(g, 0);                                        // letters travel word→rows, no suffix yet
+    return;
+  }
+
+  if (ph === 'MANTRA') {
+    buildMorph(MHOLD);
+    const idx = Math.min(Math.floor(e / MDUR), NM - 1);
+    if (idx !== curIdx) { setMantra(idx); curIdx = idx; }
+    const local = e - idx * MDUR;
+    const so = local < FADE ? local / FADE : local > MDUR - FADE ? (MDUR - local) / FADE : 1;
+    place(1, clamp01(so));                              // letters parked at row heads; suffixes cycle
+    return;
+  }
+
+  // OUT — reverse: suffixes gone, ∞→oo while the letters fly back into the word
+  const g = easeIO(p), U = 1 - SPLIT;
+  if (g < U) buildMorph(MHOLD * (1 - g / U));
+  else       buildSeparated(SEP_MAX * (g - U) / SPLIT);
+  place(1 - g, 0);
+}
+const NEXT = { WORD:'IN', IN:'MANTRA', MANTRA:'OUT', OUT:'WORD' };
+
+function frame(ts) {
+  if (start === null) start = ts;
+  const e = ts - start, p = Math.min(e / T[phase], 1);
+  render(phase, p, e);
+  updateSpecks(ts);
+  if (p >= 1) { phase = NEXT[phase]; start = ts; if (phase !== 'MANTRA') curIdx = -1; }
+  requestAnimationFrame(frame);
+}
+
+const fz = new URLSearchParams(location.search).get('freeze');
+if (fz === 'word')        { buildSeparated(SEP_MAX); place(0, 0); updateSpecks(1700); }
+else if (fz === 'mantra') { buildMorph(MHOLD); setMantra(0); place(1, 1); updateSpecks(1700); }
+else requestAnimationFrame(frame);
+</script>
+</body>
+</html>

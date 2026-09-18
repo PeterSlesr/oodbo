@@ -1,10 +1,73 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
   <head>
-    <title>oodbo</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f2eb" />
+    <link rel="apple-touch-icon" href="/icon-80.png" />
+
+    <title>oodbo | forward-only distraction free writing</title>
+    <meta name="description" content="A forward-only writing app: you can only keep going, never edit or delete — so you quiet the inner editor and finish the draft. Free to try in your browser." />
+    <link rel="canonical" href="https://www.oodbo.io/" />
+
+    <!-- Open Graph / social cards -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="oodbo" />
+    <meta property="og:title" content="oodbo — write forward, never look back" />
+    <meta property="og:description" content="A forward-only writing app: you can only keep going, never edit or delete — so you quiet the inner editor and finish the draft." />
+    <meta property="og:url" content="https://www.oodbo.io/" />
+    <meta property="og:image" content="https://www.oodbo.io/api/og-image?title=Write%20forward%2C%20never%20look%20back&amp;excerpt=A%20forward-only%20writing%20app%20that%20quiets%20the%20inner%20editor." />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="oodbo — write forward, never look back" />
+    <meta name="twitter:description" content="A forward-only writing app that quiets the inner editor so you finish the draft." />
+    <meta name="twitter:image" content="https://www.oodbo.io/api/og-image?title=Write%20forward%2C%20never%20look%20back&amp;excerpt=A%20forward-only%20writing%20app%20that%20quiets%20the%20inner%20editor." />
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "oodbo",
+      "url": "https://www.oodbo.io/",
+      "applicationCategory": "Productivity",
+      "operatingSystem": "Web browser, Windows",
+      "description": "A forward-only writing app: you can only keep going, never edit or delete, so you quiet the inner editor and finish the draft. Available in the browser, as a Windows desktop app, and as a Microsoft Word add-in."
+    }
+    </script>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body, #root { height: 100%; overflow: hidden; }
+      body {
+        font-family: Georgia, serif;
+        background: #f5f2eb;
+        color: #1f1f1f;
+      }
+    </style>
   </head>
   <body>
-    <h1>oodbo</h1>
-    <p>Coming soon, in a world far, far away.</p>
+    <div id="root">
+      <!-- Static crawler-visible fallback: a real <h1> + intro text for non-JS
+           crawlers (Bing raw, social, AI bots). React (createRoot) replaces
+           this the instant the app mounts. Styled to match the real landing
+           hero so there is no visible flash on load. -->
+      <div style="height:100%;display:flex;flex-direction:column;background:#f5f2eb;color:#1f1f1f;font-family:Georgia,serif">
+        <nav style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(20px,4vw,40px);height:54px;border-bottom:1px solid #ddd6c9">
+          <span style="font-size:16px;font-style:italic;color:#8a847a;letter-spacing:-0.02em">oodbo.io</span>
+          <span style="display:flex;align-items:center;gap:18px">
+            <span style="font-style:italic;font-size:13px;color:#8a847a">sign in</span>
+            <span style="font-style:italic;font-size:13px;color:#555;border:1px solid #ddd6c9;padding:6px 14px">get oodbo</span>
+          </span>
+        </nav>
+        <div style="flex:1;overflow-y:auto;scrollbar-gutter:stable">
+          <div style="text-align:center;max-width:600px;margin:0 auto;padding:clamp(56px,8vw,88px) clamp(20px,4vw,32px) clamp(44px,6vw,64px)">
+            <p style="font-size:12px;font-style:italic;color:#a8a091;letter-spacing:0.08em;margin:0 0 20px">a forward-only writing tool</p>
+            <h1 style="font-size:clamp(40px,7vw,68px);font-weight:normal;font-style:italic;letter-spacing:-0.03em;line-height:1.08;color:#111;margin:0 0 26px">Draft without looking back.</h1>
+            <p style="font-size:17px;line-height:1.8;color:#4a453d;max-width:500px;margin:0 auto 36px">Forward Mode removes the option to edit: no backspace, no delete, nothing in your way. Your first draft isn't precious. Getting it out of your head is.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

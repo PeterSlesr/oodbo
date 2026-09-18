@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body { background:#f5f2eb; display:flex; flex-direction:column; align-items:center;
+         justify-content:center; min-height:100vh; margin:0; gap:26px; }
+  svg { overflow:visible; }
+  #mark, #dbo { fill:none; stroke:#111; stroke-width:8; stroke-linecap:round; stroke-linejoin:round; }
+  .cap { font-family:Georgia, serif; font-size:13px; color:#999; font-style:italic; }
+</style>
+</head>
+<body>
+  <svg width="560" height="175" viewBox="-70 -60 320 100">
+    <path id="dbo"  d=""></path>
+    <path id="mark" d=""></path>
+  </svg>
+  <div class="cap">oodbo — one fluid motion into ∞ and back</div>
+
+<script>
+const mark = document.getElementById('mark');
+const dboEl = document.getElementById('dbo');
+const r = 24, S = 2 * r, N = 220;
+const MHOLD = 0.82;      // how far the morph goes (test7)
+const SEP_MAX = 12;      // gap between the two o's at "oodbo" kerning
+const PITCH = 2 * r + SEP_MAX;   // centre-to-centre spacing of the letters
+// The bare Bernoulli lobes only reach ±S/3, so the ∞ comes out much flatter than the o's.
+// Scale its vertical component to keep the loops tall while it still crosses at the centre.
+// 1.5 = ∞ exactly as tall as the o's; lower it to flatten the infinity.
+const YSCALE = 1.5;
+
+// ── The morph shape (touch ⇄ ∞): single continuous crossing stroke ──
+// Only the INNER hemispheres move. Each o is split down its vertical: the OUTER half (left
+// side of the left o, right side of the right o) stays a rigid circular arc; the inner halves
+// deform to make the crossing and the S-curve. The weight w is 0 at the outer tips (t=0,π) and
+// 1 at the inner centre (t=π/2,3π/2) — sin²t — so the morph is applied only where the cross
+// forms. Symmetric in t, so the two loops stay equal. The frozen outer arcs keep full height.
+function point(t, m) {
+  const c = Math.cos(t);
+  let cx, cy;
+  if (c >= 0) { cx =  r + r * Math.cos(2 * t); cy = r * Math.sin(2 * t); }
+  else        { cx = -r - r * Math.cos(2 * t); cy = r * Math.sin(2 * t); }
+  const den = 1 + Math.sin(t) * Math.sin(t);
+  const bx = S * c / den, by = S * Math.sin(t) * c / den * YSCALE;
+  const w = Math.sin(t) * Math.sin(t) * m;   // 0 on the outer arcs, m at the inner crossing
+  return [ cx + w * (bx - cx), cy + w * (by - cy) ];
+}
+function buildMorph(m) {
+  let d = '';
+  for (let i = 0; i <= N; i++) {
+    const [x, y] = point(i / N * 2 * Math.PI, m);
+    d += (i ? 'L' : 'M') + x.toFixed(2) + ' ' + y.toFixed(2) + ' ';
+  }
+  mark.setAttribute('d', d + 'Z');
+}
+
+// The two leading o's as two SEPARATE circles (no bridging stroke). At sep=0 identical to
+// buildMorph(0), so the two builders hand off invisibly.
+function circle(cx, rad) {
+  let d = 'M ' + (cx + rad).toFixed(2) + ' 0 ';
+  for (let i = 1; i <= 56; i++) {
+    const a = i / 56 * 2 * Math.PI;
+    d += 'L ' + (cx + rad * Math.cos(a)).toFixed(2) + ' ' + (rad * Math.sin(a)).toFixed(2) + ' ';
+  }
+  return d + 'Z ';
+}
+function buildSeparated(sep) {
+  const off = r + sep / 2;
+  mark.setAttribute('d', circle(off, r) + circle(-off, r));
+}
+
+// ── "dbo" as GEOMETRIC strict-circle letterforms, matching the o's ──
+// o = circle; d = circle + ascender stem tangent on the right; b = stem on the left.
+// Baseline at y=+r, ascender top at y=-2r. Positioned at the same PITCH as the o's.
+const stem = (x) => 'M ' + x + ' ' + r + ' L ' + x + ' ' + (-2 * r) + ' ';
+function buildDbo() {
+  const dx = r + SEP_MAX / 2;            // right edge of the leading "oo" block
+  const xd = dx + PITCH, xb = xd + PITCH, xo = xb + PITCH;   // d, b, o centres
+  dboEl.setAttribute('d',
+    circle(xd, r) + stem(xd + r) +       // d: bowl + right stem
+    circle(xb, r) + stem(xb - r) +       // b: bowl + left stem
+    circle(xo, r));                      // o
+}
+buildDbo();
+
+const easeIO = p => p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p + 2, 3) / 2;
+
+// ── Timeline. IN and OUT are each ONE eased gesture (no stop between close and morph):
+// a single easeInOut over the whole phase, split internally so the o's finish closing right
+// as the pinch begins — velocity is near its peak at that junction, so it reads as one move.
+const T = { WORD: 1400, IN: 2000, INF: 2200, OUT: 2000 };
+const SPLIT = 0.35;      // fraction of the eased gesture spent closing before the morph
+let phase = 'WORD', start = null;
+
+function render(ph, p) {
+  if (ph === 'WORD') { buildSeparated(SEP_MAX); dboEl.style.opacity = 1; return; }
+  if (ph === 'INF')  { buildMorph(MHOLD);       dboEl.style.opacity = 0; return; }
+  if (ph === 'IN') {
+    const g = easeIO(p);
+    if (g < SPLIT) { buildSeparated(SEP_MAX * (1 - g / SPLIT)); dboEl.style.opacity = 1 - g / SPLIT; }
+    else           { buildMorph(MHOLD * (g - SPLIT) / (1 - SPLIT)); dboEl.style.opacity = 0; }
+  } else { // OUT — mirror image: unmorph, then open
+    const g = easeIO(p), U = 1 - SPLIT;
+    if (g < U)     { buildMorph(MHOLD * (1 - g / U)); dboEl.style.opacity = 0; }
+    else           { buildSeparated(SEP_MAX * (g - U) / SPLIT); dboEl.style.opacity = (g - U) / SPLIT; }
+  }
+}
+const NEXT = { WORD:'IN', IN:'INF', INF:'OUT', OUT:'WORD' };
+
+function frame(ts) {
+  if (start === null) start = ts;
+  const p = Math.min((ts - start) / T[phase], 1);
+  render(phase, p);
+  if (p >= 1) { phase = NEXT[phase]; start = ts; }
+  requestAnimationFrame(frame);
+}
+
+const fz = new URLSearchParams(location.search).get('freeze');
+if (fz === 'word')     { buildSeparated(SEP_MAX); dboEl.style.opacity = 1; }
+else if (fz === 'inf') { buildMorph(MHOLD); dboEl.style.opacity = 0; }
+else requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>oodbo — sign in</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Georgia, serif;
+      background: #f5f2eb;
+      color: #1f1f1f;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: normal;
+      letter-spacing: -0.02em;
+      color: #111;
+    }
+    #status {
+      font-size: 12px;
+      color: #888;
+      font-style: italic;
+      line-height: 1.6;
+      max-width: 280px;
+    }
+    #status.error { color: #a03030; font-style: normal; }
+  </style>
+</head>
+<body>
+  <h1>oodbo</h1>
+  <p id="status">Signing in…</p>
+
+  <script>
+    if (typeof Office !== 'undefined') Office.onReady(() => {});
+
+    const params   = new URLSearchParams(location.search);
+    const code     = params.get('code');
+    const stateIn  = params.get('state');
+    const errParam = params.get('error');
+
+    if (errParam) {
+      // User cancelled or provider returned an error
+      showError('Sign-in cancelled.');
+      sendToParent({ type: 'auth_error', error: errParam });
+
+    } else if (code) {
+      // OAuth callback — exchange code for session
+      handleCallback(code, stateIn);
+
+    } else {
+      // First load — start the OAuth redirect
+      startOAuth();
+    }
+
+    // ── Start OAuth flow ────────────────────────────────────────────────────────
+    async function startOAuth() {
+      const provider = params.get('provider');
+      if (!provider) { showError('Missing provider'); return; }
+
+      document.getElementById('status').textContent = 'Redirecting to sign-in…';
+
+      try {
+        const cfg = await fetch('/api/auth/addin?action=config').then(r => r.json());
+
+        const state       = provider + '_' + Math.random().toString(36).slice(2) + Date.now();
+        const redirectUri = location.origin + '/addin-auth.html';
+
+        sessionStorage.setItem('addin_oauth_state',    state);
+        sessionStorage.setItem('addin_oauth_provider', provider);
+
+        let oauthUrl;
+        if (provider === 'google') {
+          oauthUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+            client_id:     cfg.google_client_id,
+            redirect_uri:  redirectUri,
+            response_type: 'code',
+            scope:         'openid email profile',
+            state,
+            access_type:   'offline',
+            prompt:        'select_account',
+          });
+        } else if (provider === 'microsoft') {
+          oauthUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' + new URLSearchParams({
+            client_id:     cfg.azure_client_id,
+            redirect_uri:  redirectUri,
+            response_type: 'code',
+            scope:         'openid email profile',
+            state,
+            prompt:        'select_account',
+          });
+        } else {
+          showError('Unknown provider: ' + provider);
+          return;
+        }
+
+        location.href = oauthUrl;
+
+      } catch(e) {
+        showError('Could not start sign-in — check your connection.');
+      }
+    }
+
+    // ── Handle OAuth callback ───────────────────────────────────────────────────
+    async function handleCallback(code, stateIn) {
+      const savedState    = sessionStorage.getItem('addin_oauth_state');
+      const savedProvider = sessionStorage.getItem('addin_oauth_provider');
+
+      if (!savedState || stateIn !== savedState) {
+        showError('Security check failed — please try again.');
+        sendToParent({ type: 'auth_error', error: 'State mismatch' });
+        return;
+      }
+
+      document.getElementById('status').textContent = 'Completing sign-in…';
+
+      try {
+        const redirectUri = location.origin + '/addin-auth.html';
+
+        // Exchange OAuth code for Supabase token_hash (server-side)
+        const oauthRes = await fetch('/api/auth/addin?action=oauth', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ code, provider: savedProvider, redirectUri }),
+        });
+        const oauthData = await oauthRes.json();
+        if (!oauthRes.ok) throw new Error(oauthData.error || 'Sign-in failed');
+
+        const { token_hash } = oauthData;
+
+        // Load Supabase config + SDK to verify the OTP and get a real session
+        const cfg = await fetch('/api/auth/addin?action=config').then(r => r.json());
+        await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js');
+
+        const sb = window.supabase.createClient(cfg.supabase_url, cfg.supabase_anon_key);
+        const { data, error } = await sb.auth.verifyOtp({ token_hash, type: 'magiclink' });
+        if (error) throw error;
+
+        sessionStorage.removeItem('addin_oauth_state');
+        sessionStorage.removeItem('addin_oauth_provider');
+
+        document.getElementById('status').textContent = 'Signed in — returning to Word…';
+
+        sendToParent({
+          type:          'auth_success',
+          access_token:  data.session.access_token,
+          refresh_token: data.session.refresh_token,
+          email:         data.user.email,
+        });
+
+      } catch(e) {
+        showError(e.message || 'Sign-in failed — please try again.');
+        sendToParent({ type: 'auth_error', error: e.message });
+      }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────────
+    function sendToParent(data) {
+      try {
+        Office.context.ui.messageParent(JSON.stringify(data));
+      } catch(e) {
+        // Office not ready yet — wait a tick and retry once
+        setTimeout(() => {
+          try { Office.context.ui.messageParent(JSON.stringify(data)); } catch(e2) {}
+        }, 500);
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = 'error';
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+  </script>
+</body>
+</html>

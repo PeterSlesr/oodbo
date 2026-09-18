@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Privacy Policy | oodbo | forward-only distraction free writing</title>
+  <meta name="description" content="How oodbo handles your writing and personal data — what's stored, how synced files are encrypted, sharing, and your choices." />
+  <link rel="stylesheet" href="/docs.css"/>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a class="brand" href="/">oodbo.io</a>
+  <a class="signin" href="/">sign in</a>
+</nav>
+
+<div class="scrollarea">
+<main class="content">
+
+<h1>Privacy Policy</h1>
+<p class="eyebrow">Effective September 2026</p>
+
+<p>oodbo is a forward-only writing tool. This policy describes what information we collect, how we use it, and how your writing is stored.</p>
+
+<h2>What we collect</h2>
+<ul>
+  <li><strong>Email address</strong> — when you sign in via magic link, Google, or Microsoft.</li>
+  <li><strong>Payment record</strong> — whether your account has been upgraded (true/false). We do not store card details; payments are handled by LemonSqueezy.</li>
+  <li><strong>OAuth tokens</strong> — access and refresh tokens for Google Drive or OneDrive, used solely to read and write your project files to your own cloud storage. They are stored in our database, encrypted at rest by our database provider, and used for no other purpose.</li>
+</ul>
+<p>We do not use analytics, behavioural tracking, or advertising cookies.</p>
+
+<h2>Your writing</h2>
+<p>Your projects are stored in your browser on your own device and, if you sign in with Google or Microsoft, in a hidden app folder in your own Google Drive or OneDrive. Project files are encrypted on your device before they sync, and — apart from a public share link you choose to create (see Shared content below) — we do not store your projects on our own servers or read their contents. Because that sync copy is encrypted before it leaves your device, the file held in your Google Drive or OneDrive is stored as ciphertext rather than readable text — it is not exposed in a form that can be mined or used to train AI models.</p>
+
+<h2>How sign-in works</h2>
+<p><strong>Magic link:</strong> We send a one-time sign-in link to your email via Resend. The link expires in one hour and can only be used once.</p>
+<p><strong>Google / Microsoft:</strong> We use OAuth 2.0. Your credentials go directly to Google or Microsoft — we never see your password. We receive only your email address and the tokens needed to access your Drive app folder.</p>
+
+<h2>Cloud storage</h2>
+<p>If you sign in with Google or Microsoft, your project files (.oodbo) are saved to a hidden app-specific folder in your Google Drive or OneDrive. This folder is not visible in your Drive or OneDrive interface. Only oodbo can access it. You can export your projects at any time using the Export .oodbo option, or retrieve them via Google Takeout or Microsoft's data export tools.</p>
+
+<h2>Shared content</h2>
+<p>If you create a public share link for a project or section, a snapshot of that content is copied to and stored on our servers so it can be shown on a public page. Unlike your synced files, this snapshot is not encrypted — it has to be readable to display. Anyone with the link can view it and no sign-in is required, so treat a share link as public. Shared pages are marked &ldquo;no index&rdquo; so search engines do not list them.</p>
+<p>You can update or remove a share link at any time from Shared Links in the app. Removing it takes the public page offline immediately; we retain the deactivated record for abuse handling and audit, and it is deleted if you delete your account. Content rules for shared pages are set out in the <a href="/terms#sharing">Sharing Policy</a>.</p>
+
+<h2>Third-party services (subprocessors)</h2>
+<p>The following third parties process personal data on our behalf. We will provide at least 14 days notice before adding any new subprocessor that has access to personal data.</p>
+<ul>
+  <li><strong>Supabase</strong> — stores your email address, paid status, OAuth tokens, active sessions, auth event logs, and any content you publish via a share link. Data is hosted in the EU (Ireland). <a href="https://supabase.com/privacy" target="_blank">Supabase Privacy Policy</a>.</li>
+  <li><strong>Vercel</strong> — hosts the oodbo application and processes all requests. <a href="https://vercel.com/legal/privacy-policy" target="_blank">Vercel Privacy Policy</a>.</li>
+  <li><strong>Resend</strong> — sends magic link emails. Your email address is transmitted to Resend solely to deliver the sign-in link. <a href="https://resend.com/legal/privacy-policy" target="_blank">Resend Privacy Policy</a>.</li>
+  <li><strong>LemonSqueezy</strong> — processes payments. We receive confirmation that a purchase was completed. <a href="https://www.lemonsqueezy.com/privacy" target="_blank">LemonSqueezy Privacy Policy</a>.</li>
+  <li><strong>Google / Microsoft</strong> — OAuth sign-in and cloud storage. Governed by their respective privacy policies.</li>
+</ul>
+
+<h2>Data retention</h2>
+<p>Your account record (email, paid status) is kept for as long as your account exists. Magic link tokens are deleted after use or expiry. OAuth tokens are replaced on each sign-in. Active session records are deleted when you sign out. Auth event logs (sign-in attempts, rate-limit events) are automatically deleted after 90 days. If you would like your account deleted, email us at <a href="mailto:hello@oodbo.io">hello@oodbo.io</a> and we will remove it within 30 days.</p>
+
+<h2>Your rights</h2>
+<p>You can request a copy of the data we hold about you, ask us to correct it, or ask us to delete it. Contact us at the address below.</p>
+
+<h2>Changes to this policy</h2>
+<p>If this policy changes, the updated version will be posted at this URL with a revised effective date.</p>
+
+<h2>Contact</h2>
+<p>Questions about this policy: <a href="mailto:hello@oodbo.io">hello@oodbo.io</a></p>
+
+</main>
+</div>
+
+<footer class="site-footer">
+  <a href="/privacy">privacy</a>
+  <span class="dot">·</span><a href="/terms">terms</a>
+  <span class="dot">·</span><a href="/faq">faq</a>
+  <span class="dot">·</span><a href="/blog">blog</a>
+  <span class="dot">·</span><a href="https://marketplace.microsoft.com/en-us/product/office/WA200011123" target="_blank" rel="noopener noreferrer">MS Word</a></footer>
+
+</body>
+</html>

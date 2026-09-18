@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#f5f2eb"/>
+  <!-- Subtle inner border -->
+  <rect x="48" y="48" width="1104" height="534" fill="none" stroke="#ddd6c9" stroke-width="1"/>
+  <!-- Wordmark -->
+  <text
+    x="600" y="295"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-style="italic"
+    font-size="128"
+    fill="#111"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    letter-spacing="-2"
+  >oodbo</text>
+  <!-- Divider -->
+  <line x1="520" y1="355" x2="680" y2="355" stroke="#ddd6c9" stroke-width="1"/>
+  <!-- Tagline -->
+  <text
+    x="600" y="400"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-style="italic"
+    font-size="26"
+    fill="#999"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    letter-spacing="0.5"
+  >draft without looking back</text>
+</svg>

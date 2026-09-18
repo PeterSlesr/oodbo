@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Forward — Focus</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Georgia, serif;
+      background: #ffffff;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Toolbar ── */
+    #toolbar {
+      background: #1f1f1f;
+      padding: 5px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .t-btn {
+      font-family: Georgia, serif;
+      font-size: 11px;
+      letter-spacing: 0.01em;
+      padding: 4px 12px;
+      cursor: pointer;
+      border: 1px solid #444;
+      background: transparent;
+      color: #ccc;
+    }
+    .t-btn:hover { background: #333; border-color: #888; color: #fff; }
+    .t-btn.publish { font-weight: normal; background: #fff; color: #1f1f1f; border-color: #fff; }
+    .t-btn.publish:hover { background: #e8e8e8; border-color: #e8e8e8; }
+    .t-btn:disabled { cursor: default; }
+    .t-btn.saving { opacity: 0.55; }
+
+    #theme-select {
+      font-family: Georgia, serif;
+      font-size: 10px;
+      background: #1f1f1f;
+      border: 1px solid #444;
+      color: #aaa;
+      padding: 3px 6px;
+      cursor: pointer;
+      margin-left: auto;
+    }
+    #theme-select:focus { outline: none; }
+
+    /* ── Stage — full area behind the writing box ── */
+    #stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── Writing box — centered, resizable ── */
+    #writing-box {
+      width: 620px;
+      height: 440px;
+      min-width: 220px;
+      min-height: 160px;
+      border: 1px solid #ccc;
+      padding: 28px 36px 28px;
+      overflow-y: auto;
+      position: relative;
+      box-sizing: border-box;
+    }
+    #writing-box::-webkit-scrollbar { width: 4px; }
+    #writing-box::-webkit-scrollbar-track { background: transparent; }
+    #writing-box::-webkit-scrollbar-thumb { background: #ddd; }
+
+    /* ── Resize grip ── */
+    #resize-handle {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 16px;
+      height: 16px;
+      cursor: nwse-resize;
+      opacity: 0.4;
+      clip-path: polygon(100% 0, 100% 100%, 0 100%);
+      z-index: 10;
+    }
+
+    /* ── Text display ── */
+    #text-display {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 17px;
+      line-height: 1.85;
+      white-space: pre-wrap;
+      word-break: break-word;
+      outline: none;
+      min-height: 40px;
+    }
+    #text-display .hidden  { color: #d8d8d8; }
+    #text-display .visible { color: #111111; }
+    #text-display .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: #111;
+      vertical-align: text-bottom;
+      animation: blink 1s step-start infinite;
+      margin-left: 1px;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── Status bar ── */
+    #statusbar {
+      background: #1f1f1f;
+      padding: 4px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #888;
+      letter-spacing: 0.02em;
+      flex-shrink: 0;
+      font-family: Georgia, serif;
+      font-style: italic;
+    }
+    #sb-count { color: #aaa; }
+
+    /* ── Cancel confirmation overlay ── */
+    #confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #confirm-overlay.open { display: flex; }
+    #confirm-box {
+      background: #f5f2eb;
+      border: 1px solid #ddd6c9;
+      border-top: 3px solid #111;
+      padding: 18px 18px 14px;
+      width: calc(100% - 48px);
+      max-width: 300px;
+      font-family: Georgia, serif;
+    }
+    #confirm-box p { font-size: 12px; color: #333; line-height: 1.55; margin-bottom: 14px; font-style: italic; }
+    #confirm-box p span { font-style: normal; font-weight: normal; color: #111; }
+    .confirm-actions { display: flex; gap: 8px; }
+    .confirm-discard {
+      font-family: Georgia, serif; font-size: 11px; padding: 6px 14px;
+      background: #111; color: #fff; border: 1px solid #111; cursor: pointer; flex: 1;
+    }
+    .confirm-discard:hover { opacity: 0.82; }
+    .confirm-keep {
+      font-family: Georgia, serif; font-size: 11px; padding: 6px 14px;
+      background: transparent; color: #666; border: 1px solid #ddd6c9; cursor: pointer; flex: 1;
+    }
+    .confirm-keep:hover { border-color: #111; color: #111; }
+
+    /* ══ Dark — White ══ */
+    body.dark-white { background: #000; }
+    body.dark-white #stage { background: #000; }
+    body.dark-white #writing-box { border-color: #2a2a2a; background: #000; }
+    body.dark-white #writing-box::-webkit-scrollbar-thumb { background: #333; }
+    body.dark-white #text-display .hidden  { color: #2a2a2a; }
+    body.dark-white #text-display .visible { color: #ffffff; }
+    body.dark-white #text-display .cursor  { width: 0.55em; height: 1em; background: #ffffff; margin-left: 0; }
+
+    /* ══ Dark — Green ══ */
+    body.dark-green { background: #0a0a0a; }
+    body.dark-green #stage { background: #0a0a0a; }
+    body.dark-green #writing-box { border-color: #1a3d1a; background: #0a0a0a; }
+    body.dark-green #writing-box::-webkit-scrollbar-thumb { background: #1a3d1a; }
+    body.dark-green #text-display .hidden  { color: #1a3d1a; }
+    body.dark-green #text-display .visible { color: #33ff33; }
+    body.dark-green #text-display .cursor  { width: 0.55em; height: 1em; background: #33ff33; margin-left: 0; }
+
+    /* ══ Dark — Amber ══ */
+    body.dark-amber { background: #0a0800; }
+    body.dark-amber #stage { background: #0a0800; }
+    body.dark-amber #writing-box { border-color: #3d2800; background: #0a0800; }
+    body.dark-amber #writing-box::-webkit-scrollbar-thumb { background: #3d2800; }
+    body.dark-amber #text-display .hidden  { color: #3d2800; }
+    body.dark-amber #text-display .visible { color: #ffb000; }
+    body.dark-amber #text-display .cursor  { width: 0.55em; height: 1em; background: #ffb000; margin-left: 0; }
+  </style>
+</head>
+<body>
+
+  <div id="toolbar">
+    <button class="t-btn publish" onclick="publishAndClose()">Publish to Doc</button>
+    <button id="save-btn" class="t-btn" onclick="saveDoc()">Save</button>
+    <select id="theme-select" onchange="applyTheme()">
+      <option value="light">Light</option>
+      <option value="dark-white" selected>Dark — White</option>
+      <option value="dark-green">Dark — Green</option>
+      <option value="dark-amber">Dark — Amber</option>
+    </select>
+    <button class="t-btn" onclick="cancelDialog()">Cancel</button>
+  </div>
+
+  <div id="stage">
+    <div id="writing-box">
+      <div id="text-display" tabindex="0"></div>
+      <div id="resize-handle"></div>
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <span id="sb-count">0 words</span>
+    <span id="sb-hint">ctrl+enter · publish &nbsp;·&nbsp; esc · cancel</span>
+  </div>
+
+  <!-- Cancel confirmation -->
+  <div id="confirm-overlay">
+    <div id="confirm-box">
+      <p>Discard <span id="confirm-wc"></span> and close without publishing?</p>
+      <div class="confirm-actions">
+        <button class="confirm-discard" onclick="confirmCancel()">Discard</button>
+        <button class="confirm-keep" onclick="closeConfirm()">Keep writing</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Params ────────────────────────────────────────────────────────────────
+    const params    = new URLSearchParams(window.location.search);
+    let windowSize  = parseInt(params.get('windowSize')) || 5;
+    let wordTarget  = parseInt(params.get('wordTarget'))  || 0;
+    let resumeText  = params.get('resume') ? decodeURIComponent(params.get('resume')) : '';
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let sessionText      = resumeText;
+    let sessionWordCount = 0;
+    let theme            = 'dark-white';
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    Office.onReady(() => {
+      const box = document.getElementById('writing-box');
+      try {
+        const s = JSON.parse(localStorage.getItem('fo_settings') || '{}');
+        if (s.theme) {
+          theme = s.theme;
+          document.getElementById('theme-select').value = theme;
+        }
+        // Restore saved box size
+        if (s.boxW && s.boxH) {
+          box.style.width  = s.boxW + 'px';
+          box.style.height = s.boxH + 'px';
+        }
+      } catch(e) {}
+      applyTheme();
+      renderText();
+      document.getElementById('text-display').focus();
+      document.addEventListener('keydown', onKey);
+
+      // Clamp writing box to viewport on open and on browser resize — does not save clamped size.
+      function clampBox() {
+        const maxW = window.innerWidth  - 40;
+        const maxH = window.innerHeight - 80;
+        if (box.offsetWidth  > maxW) box.style.width  = maxW + 'px';
+        if (box.offsetHeight > maxH) box.style.height = maxH + 'px';
+      }
+      clampBox(); // clamp saved size to current viewport on open
+      window.addEventListener('resize', clampBox);
+
+      // Custom resize handle — 2x growth so the corner tracks the cursor
+      // exactly despite the flex-centred stage halving growth per side.
+      const handle = document.getElementById('resize-handle');
+      handle.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        const startX = e.clientX, startY = e.clientY;
+        const startW = box.offsetWidth,  startH = box.offsetHeight;
+        function onMove(ev) {
+          const newW = Math.max(220, Math.min(window.innerWidth  - 40,  startW + (ev.clientX - startX) * 2));
+          const newH = Math.max(160, Math.min(window.innerHeight - 80,  startH + (ev.clientY - startY) * 2));
+          box.style.width  = newW + 'px';
+          box.style.height = newH + 'px';
+        }
+        function onUp() {
+          try {
+            const s = JSON.parse(localStorage.getItem('fo_settings') || '{}');
+            s.boxW = box.offsetWidth;
+            s.boxH = box.offsetHeight;
+            localStorage.setItem('fo_settings', JSON.stringify(s));
+          } catch(e) {}
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup',   onUp);
+        }
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup',   onUp);
+      });
+    });
+
+    // ── Theme ─────────────────────────────────────────────────────────────────
+    const themeVisibleColor = {
+      'light': '#111111', 'dark-white': '#ffffff',
+      'dark-green': '#33ff33', 'dark-amber': '#ffb000',
+    };
+    function applyTheme() {
+      theme = document.getElementById('theme-select').value;
+      document.body.className = theme === 'light' ? '' : theme;
+      const color = themeVisibleColor[theme] || '#ffffff';
+      document.getElementById('resize-handle').style.backgroundImage =
+        `repeating-linear-gradient(-45deg, ${color} 0, ${color} 1px, transparent 0, transparent 4px)`;
+      try {
+        const s = JSON.parse(localStorage.getItem('fo_settings') || '{}');
+        s.theme = theme;
+        localStorage.setItem('fo_settings', JSON.stringify(s));
+      } catch(e) {}
+      document.getElementById('text-display').focus();
+    }
+
+    // ── Tokenizer ─────────────────────────────────────────────────────────────
+    function tokenize(text) {
+      const result = [];
+      for (const part of text.split(/([\n]+|[ \t]+)/)) {
+        if (!part) continue;
+        result.push({ text: part, isWord: !!part.trim() && !part.includes('\n') });
+      }
+      return result;
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────
+    function renderText() {
+      const tokens   = tokenize(sessionText);
+      const wordIdx  = tokens.reduce((a,t,i) => { if(t.isWord) a.push(i); return a; }, []);
+      const total    = wordIdx.length;
+      const splitIdx = total <= windowSize ? 0 : wordIdx[wordIdx.length - windowSize];
+
+      const hiddenText  = tokens.slice(0, splitIdx).map(t => t.text).join('');
+      const visibleText = tokens.slice(splitIdx).map(t => t.text).join('');
+
+      document.getElementById('text-display').innerHTML =
+        '<span class="hidden">'  + esc(hiddenText)  + '</span>' +
+        '<span class="visible">' + esc(visibleText) + '</span>' +
+        '<span class="cursor"></span>';
+
+      const box = document.getElementById('writing-box');
+      box.scrollTop = box.scrollHeight;
+
+      sessionWordCount = total;
+      const wcText = wordTarget > 0
+        ? total + ' / ' + wordTarget + ' words'
+        : total + ' words';
+      document.getElementById('sb-count').textContent = wcText;
+    }
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+               .replace(/\n/g,'<br>');
+    }
+
+    // ── Key handler ───────────────────────────────────────────────────────────
+    function onKey(e) {
+      if (document.getElementById('confirm-overlay').classList.contains('open')) return;
+
+      const blocked = ['Backspace','Delete','ArrowLeft','ArrowRight',
+                       'ArrowUp','ArrowDown','Home','End','PageUp','PageDown'];
+      if (blocked.includes(e.key))                          { e.preventDefault(); return; }
+      if (e.ctrlKey && e.key.toLowerCase() === 'z')         { e.preventDefault(); return; }
+      if (e.ctrlKey && e.key === 'Enter')                   { e.preventDefault(); publishAndClose(); return; }
+      if (e.key === 'Escape')                               { e.preventDefault(); cancelDialog(); return; }
+      if (e.key === 'Enter')                                { e.preventDefault(); sessionText += '\n'; renderText(); scheduleAutosave(); return; }
+      if (e.key === 'Tab')                                  { e.preventDefault(); sessionText += '\t'; renderText(); scheduleAutosave(); return; }
+      if (e.key === ' ')                                    { e.preventDefault(); sessionText += ' ';  renderText(); scheduleAutosave(); return; }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey)  { sessionText += e.key; renderText(); scheduleAutosave(); }
+    }
+
+    // ── Publish and close ─────────────────────────────────────────────────────
+    function publishAndClose() {
+      clearAutosave();
+      if (!sessionText.trim()) { sendMessage({ type: 'close' }); return; }
+      const wordCount = sessionText.trim().split(/\s+/).filter(w => w).length;
+      sendMessage({ type: 'publish', text: sessionText, wordCount });
+      sendMessage({ type: 'close' });
+    }
+
+    // ── Cancel (with confirmation if there's text) ────────────────────────────
+    function cancelDialog() {
+      if (!sessionText.trim()) { sendMessage({ type: 'close' }); return; }
+      const wordCount = sessionText.trim().split(/\s+/).filter(w => w).length;
+      document.getElementById('confirm-wc').textContent =
+        wordCount + ' word' + (wordCount === 1 ? '' : 's');
+      document.getElementById('confirm-overlay').classList.add('open');
+    }
+
+    function closeConfirm() {
+      document.getElementById('confirm-overlay').classList.remove('open');
+      document.getElementById('text-display').focus();
+    }
+
+    function confirmCancel() { clearAutosave(); sendMessage({ type: 'close' }); }
+
+    // ── Message to taskpane ───────────────────────────────────────────────────
+    function sendMessage(obj) {
+      try { Office.context.ui.messageParent(JSON.stringify(obj)); } catch(e) {}
+    }
+
+    // ── Autosave (crash recovery) ───────────────────────────────────────────────
+    // The in-progress text lives only in this dialog until publish — a Word crash or an
+    // accidental dialog close would lose it. Mirror the app's forward-draft guard: send the
+    // text to the taskpane (which persists it durably) on a 400ms trailing debounce PLUS a
+    // 1s maxWait ceiling, so unbroken typing still flushes and a crash costs at most ~1s.
+    let autosaveTimer = null, autosaveMaxTimer = null;
+    function scheduleAutosave() {
+      if (autosaveTimer) clearTimeout(autosaveTimer);
+      autosaveTimer = setTimeout(fireAutosave, 400);
+      if (!autosaveMaxTimer) autosaveMaxTimer = setTimeout(fireAutosave, 1000);
+    }
+    function fireAutosave() {
+      clearAutosave();
+      sendMessage({ type: 'autosave', text: sessionText });
+    }
+    function clearAutosave() {
+      if (autosaveTimer)    { clearTimeout(autosaveTimer);    autosaveTimer = null; }
+      if (autosaveMaxTimer) { clearTimeout(autosaveMaxTimer); autosaveMaxTimer = null; }
+    }
+
+    // Save button — push the latest text into the document's settings, then ask the taskpane to
+    // save the Word document (which flushes that draft to disk). Feedback is optimistic: Forward
+    // mode is gated on an already-saved doc, so document.save() is fast and reliable.
+    let _saveT1 = null, _saveT2 = null;
+    function saveDoc() {
+      fireAutosave();
+      sendMessage({ type: 'save' });
+      const btn = document.getElementById('save-btn');
+      if (!btn) return;
+      clearTimeout(_saveT1); clearTimeout(_saveT2);
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      btn.classList.add('saving');
+      _saveT1 = setTimeout(() => { btn.textContent = 'Saved ✓'; btn.classList.remove('saving'); }, 500);
+      _saveT2 = setTimeout(() => { btn.textContent = 'Save'; btn.disabled = false; }, 1700);
+    }
+  </script>
+</body>
+</html>

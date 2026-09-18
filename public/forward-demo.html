@@ -1,0 +1,133 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>oodbo Forward mode</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Self-running Forward-mode demo for the landing page. Device only, transparent ground,
+     auto-cycles the four themes. No dependencies, no build step. Embedded via <iframe>. -->
+<style>
+  :root{ --chrome:#1f1f1f; --hair:rgba(0,0,0,.10); --serif:Georgia,'Times New Roman',serif; --mono:'Courier New',Courier,monospace; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{ background:transparent; font-family:var(--serif); -webkit-font-smoothing:antialiased; display:flex; align-items:center; justify-content:center; padding:6px; }
+  .device{
+    --bg:#000; --hidden:#3a3a3a; --vis:#fff; --cursor:#fff; --content:#000; --border:#fff; --cw:.55em;
+    width:min(570px,100%); border-radius:8px; overflow:hidden; background:var(--chrome);
+    box-shadow:0 0 0 1px var(--hair), 0 30px 60px -28px rgba(40,32,20,.5), 0 8px 20px -14px rgba(0,0,0,.4);
+  }
+  .device[data-fm="green"]{ --bg:#0a0a0a; --hidden:#1a3d1a; --vis:#33ff33; --cursor:#33ff33; --content:#0a0a0a; --border:#33ff33; }
+  .device[data-fm="amber"]{ --bg:#0a0800; --hidden:#3d2800; --vis:#ffb000; --cursor:#ffb000; --content:#0a0800; --border:#ffb000; }
+  .device[data-fm="light"]{ --bg:#f5f2eb; --hidden:#d8d8d8; --vis:#111; --cursor:#111; --content:#fff; --border:transparent; --cw:2px; }
+  .toolbar{ background:var(--chrome); height:44px; display:flex; align-items:center; gap:12px; padding:0 16px; }
+  .tb-theme{ font-family:var(--serif); font-size:10px; color:#aaa; border:1px solid #444; padding:3px 7px; border-radius:2px; white-space:nowrap; }
+  .tb-spacer{ flex:1; }
+  .tb-wc{ font-family:var(--serif); font-size:11px; font-style:italic; color:#aaa; font-variant-numeric:tabular-nums; }
+  .tb-btn{ font-family:var(--serif); font-size:12px; color:#ccc; background:transparent; border:1px solid #444; border-radius:2px; padding:4px 11px; }
+  .tb-btn.primary{ color:#e9e9e9; border-color:#5a5a5a; }
+  .paperwrap{ background:var(--bg); padding:20px; display:flex; align-items:center; justify-content:center; transition:background .5s ease; }
+  .paper{ position:relative; width:100%; height:340px; min-height:240px; background:var(--content); border:1px solid var(--border); overflow:hidden; transition:opacity .5s ease, background .5s ease, border-color .5s ease; }
+  .device.resetting .paper{ opacity:0; }
+  .paperscroll{ position:absolute; inset:0; overflow:hidden; padding:20px 22px; }
+  .display{ font-family:var(--mono); font-size:17px; line-height:1.85; white-space:pre-wrap; word-break:break-word; min-height:60px; }
+  .fh{ color:var(--hidden); transition:color .5s ease; }
+  .fv{ color:var(--vis); transition:color .5s ease; }
+  .fc{ display:inline-block; width:var(--cw); height:1em; background:var(--cursor); vertical-align:text-bottom; animation:fwd-blink 1s step-start infinite; }
+  .device[data-fm="light"] .fc{ margin-left:1px; }
+  @keyframes fwd-blink{ 0%,100%{opacity:1} 50%{opacity:0} }
+  .intro{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:26px; gap:12px; pointer-events:none; opacity:0; transition:opacity .5s ease; color:var(--vis); }
+  .intro.show{ opacity:1; }
+  .intro .i-title{ font-family:var(--serif); font-size:14px; font-style:italic; letter-spacing:.02em; margin:0; }
+  .intro .i-body{ font-family:var(--serif); font-size:16px; line-height:1.6; margin:0; max-width:42ch; }
+  .intro .i-hint{ font-family:var(--serif); font-size:14px; line-height:1.6; margin:5px 0 0; opacity:.55; }
+  .intro.eyebrow .i-body, .intro.eyebrow .i-hint{ display:none; }
+  .statusbar{ background:var(--chrome); padding:5px 16px; font-family:var(--serif); font-size:10px; font-style:italic; color:#666; }
+  @media (prefers-reduced-motion: reduce){ .fc{ animation:none; } .paper,.fh,.fv,.intro,.paperwrap,.device{ transition:none; } }
+</style>
+<div class="device" id="device" data-fm="white" role="img"
+     aria-label="oodbo Forward mode: text typing itself on a dark page, with only the last few words in full color.">
+  <div class="toolbar">
+    <span class="tb-theme" id="themeLabel">Dark ▾</span>
+    <span class="tb-spacer"></span>
+    <span class="tb-wc"><span id="wc">0</span> words</span>
+    <button class="tb-btn" tabindex="-1">Cancel</button>
+    <button class="tb-btn primary" tabindex="-1">Edit</button>
+  </div>
+  <div class="paperwrap">
+    <div class="paper">
+      <div class="paperscroll"><div class="display" id="display"></div></div>
+      <div class="intro" id="intro">
+        <p class="i-title">Forward only</p>
+        <p class="i-body">You can’t edit or delete what you write here, you can only keep going. Let it be rough; fix it later. That’s the whole idea.</p>
+        <p class="i-hint">Click “Edit” or press Ctrl / ⌘ + Enter when you’re done.</p>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar">ctrl+enter · edit &nbsp;·&nbsp; esc · cancel</div>
+</div>
+<script>
+(() => {
+  const WINDOW_SIZE = 5;
+  const WPM = 117, JITTER = 0.4, COMMA = 60, PERIOD = 80, THINK_ODDS = 0.045;
+  const base = 60000 / (WPM * 5);
+  const passages = [
+    { theme:'white', label:'Dark ▾',
+      text:`I don't know what to write, not yet, but that's fine.. Writing more and thinking less helps to get me out of my own way. One word and then the next, over and over and over again until the sentences start to find themselves. Tpyos and all.` },
+    { theme:'green', label:'Green ▾',
+      text:`all edit and no play makes jack a dull boy.... all edit and no play makes jack a dull boy.... all edit and no play makes jack a dull boy.... all edit and no play` },
+    { theme:'amber', label:'Amber ▾',
+      text:`Let ti be ruugh. Fixx iti n teh mornig. the edditor can wait; tonite I onley go fowrad, and teh wirds keep thier own quite momemtum.` },
+    { theme:'light', label:'Light ▾',
+      text:`At a certain point the noise drops away, and it is only me and the page with nothing to stop me from finding out what comes next.` },
+  ];
+  const device=document.getElementById('device'), display=document.getElementById('display'),
+        intro=document.getElementById('intro'), wcEl=document.getElementById('wc'),
+        themeLabel=document.getElementById('themeLabel'), scroll=display.parentElement;
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const rand=(a,b)=>a+Math.random()*(b-a);
+  function tokenize(text){ const out=[]; for(const part of text.split(/([\n]+|[ \t]+)/)){ if(part==='')continue; out.push({text:part,isWord:!/^[\n \t]+$/.test(part)}); } return out; }
+  function render(t){
+    const tokens=tokenize(t); const wordIdx=[]; tokens.forEach((tk,i)=>{ if(tk.isWord)wordIdx.push(i); });
+    const total=wordIdx.length; const splitAt=total<=WINDOW_SIZE?0:wordIdx[wordIdx.length-WINDOW_SIZE];
+    const hidden=tokens.slice(0,splitAt).map(x=>x.text).join(''); const visible=tokens.slice(splitAt).map(x=>x.text).join('');
+    display.innerHTML=`<span class="fh">${esc(hidden)}</span><span class="fv">${esc(visible)}</span><span class="fc"></span>`;
+    scroll.scrollTop=scroll.scrollHeight;
+  }
+  const wordCount=t=>t.trim()?t.trim().split(/\s+/).filter(Boolean).length:0;
+  function setTheme(p){ device.dataset.fm=p.theme; themeLabel.textContent=p.label; }
+  let gen=0, idx=0, firstEver=true;
+  async function typePassage(text,myGen){
+    let out='';
+    for(const ch of text){
+      if(myGen!==gen)return false;
+      out+=ch; render(out); wcEl.textContent=wordCount(out);
+      let d=base*(1+(Math.random()*2-1)*JITTER);
+      if('.!?\n'.includes(ch))d+=PERIOD; else if(',;:'.includes(ch))d+=COMMA;
+      else if(ch===' '&&Math.random()<THINK_ODDS)d+=rand(380,1050);
+      await sleep(d);
+    }
+    return true;
+  }
+  async function runner(myGen){
+    while(myGen===gen){
+      const p=passages[idx%passages.length]; setTheme(p); render(''); wcEl.textContent=0;
+      if(firstEver){
+        intro.classList.remove('eyebrow'); intro.classList.add('show');
+        await sleep(2800); if(myGen!==gen)return; intro.classList.remove('show');
+        await sleep(450); if(myGen!==gen)return; firstEver=false;
+      } else {
+        intro.classList.add('eyebrow','show');
+        await sleep(750); if(myGen!==gen)return; intro.classList.remove('show');
+        await sleep(300); if(myGen!==gen)return;
+      }
+      const done=await typePassage(p.text,myGen); if(!done)return;
+      await sleep(2600); if(myGen!==gen)return;
+      device.classList.add('resetting'); await sleep(520); device.classList.remove('resetting');
+      if(myGen!==gen)return;
+      idx++;
+    }
+  }
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    setTheme(passages[0]); render(passages[0].text); wcEl.textContent=wordCount(passages[0].text);
+  } else { runner(++gen); }
+})();
+</script>

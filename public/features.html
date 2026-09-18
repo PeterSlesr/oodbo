@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Everything oodbo does | oodbo | forward-only distraction free writing</title>
+  <meta name="description" content="The full feature list for oodbo — forward-only writing, private sync to your own Google Drive or OneDrive, no AI, export to .docx/.pdf/.txt/.md, and one purchase across browser, desktop, and Word."/>
+  <link rel="canonical" href="https://www.oodbo.io/features"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:title" content="Everything oodbo does"/>
+  <meta property="og:description" content="Forward-only writing, private sync, no AI, one purchase everywhere. The full feature list."/>
+  <meta property="og:url" content="https://www.oodbo.io/features"/>
+  <meta name="twitter:card" content="summary"/>
+  <style>
+    :root{
+      --bg:#f5f2eb; --ink:#1f1f1f; --ink-strong:#111;
+      --muted:#8a847a; --faint:#a8a091; --hair:#ddd6c9; --panel:#edeae3;
+      --serif: Georgia, 'Times New Roman', serif;
+      --mono: 'Courier New', Courier, monospace;
+    }
+    *{ box-sizing:border-box; margin:0; padding:0; }
+    html,body{ height:100%; }
+    body{ background:var(--bg); color:var(--ink); font-family:var(--serif); -webkit-font-smoothing:antialiased; display:flex; flex-direction:column; overflow:hidden; }
+    .fscroll{ flex:1; overflow-y:auto; }
+
+    .nav{ flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 clamp(20px,4vw,40px); height:54px; border-bottom:1px solid var(--hair); }
+    .wordmark{ font-size:16px; font-style:italic; color:var(--muted); letter-spacing:-.02em; text-decoration:none; }
+    .wordmark:hover{ color:var(--ink-strong); }
+    .nav a.link{ font-family:var(--serif); font-style:italic; font-size:13px; color:var(--muted); text-decoration:none; }
+    .nav a.link:hover{ color:var(--ink-strong); }
+
+    .fhero{ text-align:center; max-width:600px; margin:0 auto; padding:clamp(52px,7vw,80px) clamp(20px,4vw,32px) clamp(20px,4vw,28px); }
+    .eyebrow{ font-size:12px; font-style:italic; color:var(--faint); letter-spacing:.08em; margin:0 0 18px; }
+    .fhero h1{ font-size:clamp(34px,5vw,52px); font-weight:normal; font-style:italic; letter-spacing:-.03em; line-height:1.1; color:var(--ink-strong); margin:0; text-wrap:balance; }
+
+    .fwrap{ max-width:860px; margin:0 auto; padding:0 clamp(20px,4vw,32px); }
+    .group{ display:grid; grid-template-columns:190px 1fr; gap:clamp(20px,4vw,56px); padding:clamp(34px,5vw,48px) 0; }
+    .group + .group{ border-top:1px solid var(--hair); }
+    .group h2{ font-size:12px; font-weight:bold; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin:0; padding-top:3px; }
+    .grid{ display:flex; flex-direction:column; gap:22px; }
+    .fblock p.t{ font-size:15px; font-style:italic; color:var(--ink-strong); margin:0 0 6px; }
+    .fblock p.d{ font-size:14px; line-height:1.72; color:#6a6459; margin:0; max-width:62ch; }
+
+    .cta{ text-align:center; padding:clamp(48px,7vw,72px) clamp(20px,4vw,32px); border-top:1px solid var(--hair); }
+    .cta h2{ font-size:clamp(24px,3.5vw,32px); font-weight:normal; font-style:italic; letter-spacing:-.02em; color:var(--ink-strong); margin:0 0 24px; }
+    .btn{ display:inline-block; font-family:var(--serif); font-style:italic; font-size:15px; color:var(--bg); background:var(--ink-strong); padding:12px 28px; text-decoration:none; }
+    .btn:hover{ background:#333; }
+    .micro{ font-size:12px; font-style:italic; color:var(--faint); margin:14px 0 0; }
+
+    .footer{ flex-shrink:0; border-top:1px solid var(--hair); padding:16px clamp(20px,4vw,40px); display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:11px; }
+    .footer a{ color:var(--faint); text-decoration:none; font-style:italic; }
+    .footer a:hover{ color:var(--ink-strong); }
+    .footer .dot{ color:#ccc; }
+
+    a:focus-visible, .btn:focus-visible{ outline:2px solid #7a6f57; outline-offset:2px; }
+    @media (max-width:640px){ .group{ grid-template-columns:1fr; gap:14px; } .group h2{ padding-top:0; } }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a class="wordmark" href="/">oodbo.io</a>
+    <a class="link" href="/">sign in</a>
+  </nav>
+
+  <main class="fscroll">
+
+  <header class="fhero">
+    <p class="eyebrow">features</p>
+    <h1>Everything oodbo does.</h1>
+  </header>
+
+  <div class="fwrap">
+
+    <section class="group">
+      <h2>How you write</h2>
+      <div class="grid">
+        <div class="fblock">
+          <p class="t">Forward Mode</p>
+          <p class="d">This is where you write. The constraint is that you can only type forward. Removing backspace, delete, select/cut, and your cursor keys helps to get it down before you get it right.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Edit Mode</p>
+          <p class="d">Once the draft exists, switching into a normal editor allows you to improve what you've written. Add notes, fix typos, reword awkward phrases, rearrange the text. Your natural ability to edit is welcome now.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Autosave on every keystroke</p>
+          <p class="d">Every character is saved to your browser/app storage at most every second. On desktop, the text is backed up to your hard drive every 2 seconds. If syncing to Google Drive or Microsoft OneDrive, the text is backed up to the cloud every minute. In Microsoft Word, the text is backed up every second (but, like all text in Word, is only retained when the document is saved).</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Annotations</p>
+          <p class="d">Leave yourself notes on any bit of text. Thoughts, reminders, questions for the revision pass.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Projects</p>
+          <p class="d">Enjoy an unlimited number of projects. They will be saved to your browser, desktop, cloud account and can be exported for backup.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>Yours, and private</h2>
+      <div class="grid">
+        <div class="fblock">
+          <p class="t">Own your data</p>
+          <p class="d">If logged in via Google or Microsoft, projects sync to a private app folder in your own Google Drive or Microsoft OneDrive. If logged in to the desktop app, projects sync to a private app folder on your computer. Your writing is never saved to our server unless you intentionally share it.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Encrypted before it syncs</p>
+          <p class="d">Your writing is encrypted on your device before being backed up to the cloud. What is saved to the cloud is not visible to Google or Microsoft for training their AI models.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">No AI</p>
+          <p class="d">No suggestions, no autocomplete, no "improve this." The only AI available to you is Actual Intelligence.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Export</p>
+          <p class="d">Download your drafts as .docx, .pdf, .txt, .md, or the native .oodbo one at a time. Or export every project at once as a .zip.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Import</p>
+          <p class="d">Import a .oodbo file, or a .zip of .oodbos, to restore.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>Everywhere</h2>
+      <div class="grid">
+        <div class="fblock">
+          <p class="t">Browser, desktop, and Word</p>
+          <p class="d">Write in your browser, in a native Windows app, or inside Microsoft Word. One purchase covers all three.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Works offline</p>
+          <p class="d">Write while offline. Your work saves to your browser/desktop and syncs when you're back online.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Shareable links</p>
+          <p class="d">Publish projects or individual sections as read-only links, shareable on your favorite social sites.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">Progress cards</p>
+          <p class="d">Get a card showing off your progress, shareable on your favorite social sites.</p>
+        </div>
+        <div class="fblock">
+          <p class="t">One-time purchase</p>
+          <p class="d">Buy once, use everywhere. No subscription, ever.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <section class="cta">
+    <h2>Draft without looking back.</h2>
+    <a class="btn" href="/guest">start writing free</a>
+    <p class="micro">no account, nothing to install</p>
+  </section>
+
+  </main>
+
+  <footer class="footer">
+    <a href="/privacy">privacy</a>
+    <span class="dot">·</span><a href="/terms">terms</a>
+    <span class="dot">·</span><a href="/faq">faq</a>
+    <span class="dot">·</span><a href="/blog">blog</a>
+    <span class="dot">·</span><a href="https://marketplace.microsoft.com/en-us/product/office/WA200011123" target="_blank" rel="noopener noreferrer">MS Word</a>  </footer>
+
+</body>
+</html>

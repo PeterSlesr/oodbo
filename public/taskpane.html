@@ -1,0 +1,1807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>oodbo</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    :root {
+      --bg:     #f5f2eb;
+      --text:   #1f1f1f;
+      --muted:  #666;
+      --line:   #ddd6c9;
+      --accent: #111;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      font-size: 13px;
+    }
+
+    /* ── Header ── */
+    #header {
+      padding: 14px 14px 12px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    #header h1 {
+      font-size: 18px;
+      font-weight: normal;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+      line-height: 1;
+    }
+    #header p {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 3px;
+      font-style: italic;
+    }
+
+    /* ── Body ── */
+    #body {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Row ── */
+    .row {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .row-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .row-value {
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    /* ── Session word count ── */
+    #session-count {
+      font-size: 32px;
+      font-weight: normal;
+      color: var(--accent);
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    #session-target-line {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 2px;
+      font-style: italic;
+    }
+    #session-target-line.reached {
+      color: var(--accent);
+      font-style: normal;
+      letter-spacing: 0.01em;
+    }
+
+    /* ── Unpublished notice ── */
+    #unpublished-banner {
+      display: none;
+      background: #fdf8ec;
+      border-bottom: 1px solid var(--line);
+      border-left: 2px solid #c8a84b;
+      padding: 7px 14px;
+      font-size: 10px;
+      color: #7a6020;
+      font-style: italic;
+      flex-shrink: 0;
+    }
+    #unpublished-banner.visible { display: block; }
+
+    /* ── Primary button ── */
+    #launch-wrap {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    #launch-btn {
+      font-family: Georgia, serif;
+      font-size: 12px;
+      letter-spacing: 0.01em;
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--accent);
+      color: #fff;
+      border: 1px solid var(--accent);
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    #launch-btn:hover  { opacity: 0.82; }
+    #launch-btn:active { opacity: 0.65; }
+    /* Launch feedback — a toast right under the button, not the far-off status line. */
+    .launch-notice {
+      display: none;
+      margin-top: 8px;
+      background: #fdf8ec;
+      border: 1px solid #e6d9a8;
+      border-left: 2px solid #c8a84b;
+      padding: 8px 10px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #7a6020;
+      font-style: italic;
+    }
+    .launch-notice.visible { display: block; }
+
+    /* ── Settings ── */
+    .settings-grid {
+      display: grid;
+      grid-template-columns: auto 60px auto;
+      gap: 4px 8px;
+      align-items: center;
+    }
+    .settings-grid label {
+      font-size: 11px;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .fo-input {
+      font-family: Georgia, serif;
+      font-size: 12px;
+      padding: 3px 5px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      width: 100%;
+      -moz-appearance: textfield;
+    }
+    .fo-input::-webkit-inner-spin-button,
+    .fo-input::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .fo-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .settings-unit {
+      font-size: 10px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── Secondary button ── */
+    .sec-btn {
+      font-family: Georgia, serif;
+      font-size: 10px;
+      padding: 5px 10px;
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      cursor: pointer;
+      width: 100%;
+      text-align: center;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .sec-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Quote area ── */
+    #quote-area {
+      flex: 1;
+      padding: 16px 14px 36px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      position: relative;
+      border-bottom: 1px solid var(--line);
+    }
+    #quote-text {
+      font-size: 11px;
+      color: var(--muted);
+      font-style: italic;
+      line-height: 1.7;
+    }
+    #quote-attr {
+      font-size: 10px;
+      color: var(--line);
+      margin-top: 8px;
+    }
+    #mantra-btn {
+      position: absolute;
+      bottom: 10px;
+      right: 14px;
+      font-family: Georgia, serif;
+      font-size: 9px;
+      font-style: italic;
+      color: var(--line);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 2px 0;
+    }
+    #mantra-btn:hover { color: var(--muted); }
+
+    /* ── Mantra modal ── */
+    #mantra-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #mantra-overlay.open { display: flex; }
+    #mantra-modal {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--accent);
+      width: calc(100% - 28px);
+      max-width: 280px;
+      padding: 16px 16px 14px;
+    }
+    #mantra-modal h2 {
+      font-size: 13px;
+      font-weight: normal;
+      color: var(--accent);
+      margin-bottom: 6px;
+      letter-spacing: -0.01em;
+    }
+    #mantra-modal p {
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      line-height: 1.55;
+      font-style: italic;
+    }
+    #mantra-textarea {
+      font-family: Georgia, serif;
+      font-size: 12px;
+      width: 100%;
+      padding: 6px 7px;
+      border: 1px solid var(--line);
+      color: var(--text);
+      background: #fff;
+      resize: none;
+      line-height: 1.55;
+    }
+    #mantra-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .modal-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .modal-save {
+      font-family: Georgia, serif;
+      font-size: 11px;
+      padding: 6px 12px;
+      background: var(--accent);
+      color: #fff;
+      border: 1px solid var(--accent);
+      cursor: pointer;
+      flex: 1;
+    }
+    .modal-save:hover { opacity: 0.82; }
+    .modal-cancel {
+      font-family: Georgia, serif;
+      font-size: 11px;
+      padding: 6px 12px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      cursor: pointer;
+      flex: 1;
+    }
+    .modal-cancel:hover { border-color: var(--accent); color: var(--accent); }
+    .modal-clear {
+      font-family: Georgia, serif;
+      font-size: 10px;
+      color: var(--line);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 6px 4px;
+      font-style: italic;
+    }
+    .modal-clear:hover { color: var(--muted); }
+
+    /* ── Status bar ── */
+    #status-bar {
+      padding: 5px 14px;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+      font-style: italic;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #version-label {
+      font-size: 9px;
+      color: var(--line);
+      font-style: normal;
+    }
+    #sign-out-btn {
+      display: none;
+      font-family: Georgia, serif;
+      font-size: 9px;
+      font-style: italic;
+      color: var(--line);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+    }
+    #sign-out-btn:hover { color: var(--muted); }
+
+    /* ── Auth overlay ── */
+    #auth-gate {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 200;
+      flex-direction: column;
+    }
+    #auth-gate.open { display: flex; }
+
+    /* ── Auth form ── */
+    #auth-form {
+      display: flex;
+      flex-direction: column;
+      padding: 28px 20px;
+      flex: 1;
+    }
+    #auth-form h1 {
+      font-size: 20px;
+      font-weight: normal;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+      margin-bottom: 3px;
+    }
+    .auth-sub {
+      font-size: 10px;
+      color: var(--muted);
+      font-style: italic;
+      margin-bottom: 22px;
+    }
+    .auth-divider {
+      border-top: 1px solid var(--line);
+      margin-bottom: 22px;
+    }
+    .auth-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-style: italic;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    #auth-email {
+      font-family: Georgia, serif;
+      font-size: 13px;
+      padding: 7px 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    #auth-email:focus { outline: none; border-color: var(--accent); }
+    #auth-btn {
+      font-family: Georgia, serif;
+      font-size: 12px;
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--accent);
+      color: #fff;
+      border: 1px solid var(--accent);
+      cursor: pointer;
+      transition: opacity 0.15s;
+      margin-bottom: 10px;
+    }
+    #auth-btn:hover   { opacity: 0.82; }
+    #auth-btn:disabled { opacity: 0.45; cursor: default; }
+    #auth-status {
+      font-size: 10px;
+      color: var(--muted);
+      font-style: italic;
+      min-height: 16px;
+      line-height: 1.5;
+    }
+    #auth-status.error { color: #a03030; font-style: normal; }
+
+    /* ── OAuth buttons ── */
+    .auth-or {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+    }
+    .auth-or-line { flex: 1; border-top: 1px solid var(--line); }
+    .auth-or-text { font-size: 9px; color: var(--line); letter-spacing: 0.08em; text-transform: uppercase; }
+
+    .oauth-btn {
+      font-family: Georgia, serif;
+      font-size: 11px;
+      width: 100%;
+      padding: 7px 12px;
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      cursor: pointer;
+      margin-bottom: 6px;
+      text-align: center;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .oauth-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Auth waiting / polling ── */
+    #auth-waiting {
+      display: none;
+      flex-direction: column;
+      padding: 28px 20px;
+      flex: 1;
+    }
+    #auth-waiting h1 {
+      font-size: 20px;
+      font-weight: normal;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+      margin-bottom: 3px;
+    }
+    .waiting-title {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .waiting-body {
+      font-size: 11px;
+      color: var(--muted);
+      font-style: italic;
+      line-height: 1.65;
+      margin-bottom: 20px;
+    }
+    .waiting-body strong {
+      color: var(--text);
+      font-style: normal;
+    }
+    .waiting-dots {
+      font-size: 10px;
+      color: var(--line);
+      letter-spacing: 0.04em;
+      margin-bottom: 20px;
+      font-style: italic;
+    }
+    #auth-cancel {
+      font-family: Georgia, serif;
+      font-size: 10px;
+      padding: 5px 10px;
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      cursor: pointer;
+      width: auto;
+      align-self: flex-start;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #auth-cancel:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Share progress modal ── */
+    #share-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #share-overlay.open { display: flex; }
+    #share-modal {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--accent);
+      width: calc(100% - 24px);
+      max-width: 300px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding: 16px 16px 14px;
+    }
+    #share-modal h2 {
+      font-size: 13px;
+      font-weight: normal;
+      color: var(--accent);
+      letter-spacing: -0.01em;
+      margin-bottom: 2px;
+    }
+    #share-modal .share-sub {
+      font-size: 10px;
+      color: var(--muted);
+      font-style: italic;
+      margin-bottom: 12px;
+    }
+    #share-canvas {
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--line);
+      display: block;
+      margin-bottom: 10px;
+    }
+    #share-textline {
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--text);
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+    }
+    #share-textline a { color: var(--accent); }
+    .share-actions { display: flex; gap: 6px; }
+    .share-btn {
+      font-family: Georgia, serif;
+      font-size: 11px;
+      padding: 7px 10px;
+      flex: 1;
+      cursor: pointer;
+      transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .share-btn.primary {
+      background: var(--accent);
+      color: #fff;
+      border: 1px solid var(--accent);
+    }
+    .share-btn.primary:hover { opacity: 0.82; }
+    .share-btn.secondary {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    .share-btn.secondary:hover { border-color: var(--accent); color: var(--accent); }
+    #share-close {
+      font-family: Georgia, serif;
+      font-size: 10px;
+      color: var(--muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      margin-top: 10px;
+      font-style: italic;
+      padding: 0;
+    }
+    #share-close:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ── Auth overlay ─────────────────────────────────────────────────────────── -->
+<div id="auth-gate" class="open">
+
+  <!-- Email form -->
+  <div id="auth-form">
+    <h1>oodbo</h1>
+    <p class="auth-sub">draft without looking back</p>
+    <div class="auth-divider"></div>
+    <p class="auth-label">Sign in to your account — or try oodbo free below. We'll email a link, no password needed.</p>
+    <!-- Normal email form -->
+    <div id="auth-email-row">
+      <input id="auth-email" type="email" placeholder="your@email.com" spellcheck="false" autocomplete="email"
+        onkeydown="if(event.key==='Enter') sendLink()"/>
+    </div>
+    <!-- Key sign-in (hidden by default) -->
+    <div id="auth-key-row" style="display:none; margin-bottom:8px;">
+      <input id="auth-password" type="password" placeholder="access key" spellcheck="false"
+        style="font-family:Georgia,serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--text);width:100%;margin-bottom:0;"
+        onkeydown="if(event.key==='Enter') sendLink()"/>
+    </div>
+    <button id="auth-btn" onclick="sendLink()">Send sign-in link</button>
+    <p id="auth-status"></p>
+
+    <div class="auth-or">
+      <span class="auth-or-line"></span>
+      <span class="auth-or-text">or</span>
+      <span class="auth-or-line"></span>
+    </div>
+
+    <button class="oauth-btn" onclick="startOAuth('google')">Sign in with Google</button>
+    <button class="oauth-btn" onclick="startOAuth('microsoft')">Sign in with Microsoft</button>
+    <button class="oauth-btn" id="auth-key-toggle" onclick="togglePasswordRow()" style="display:none;">Sign in with key</button>
+
+    <div class="auth-or"><span class="auth-or-line"></span><span class="auth-or-text">or</span><span class="auth-or-line"></span></div>
+    <button class="oauth-btn" id="auth-try-free" style="border-color:var(--accent); color:var(--accent);" onclick="startTrial()">Try for free</button>
+  </div>
+
+  <!-- Polling / waiting -->
+  <div id="auth-waiting">
+    <h1>oodbo</h1>
+    <div class="auth-divider" style="margin-top:3px; margin-bottom:22px;"></div>
+    <p class="waiting-title">Check your email</p>
+    <p class="waiting-body">
+      We sent a sign-in link to <strong id="auth-waiting-email"></strong>.<br><br>
+      Click the link in that email — this window will update automatically.
+    </p>
+    <p class="waiting-dots" id="waiting-indicator">waiting…</p>
+    <button id="auth-cancel" onclick="cancelPolling()">Cancel</button>
+  </div>
+
+  <!-- No account -->
+  <div id="auth-no-account" style="display:none; flex-direction:column; padding:28px 20px; flex:1;">
+    <h1>oodbo</h1>
+    <div class="auth-divider" style="margin-top:3px; margin-bottom:22px;"></div>
+    <p class="waiting-title">No account found</p>
+    <p class="waiting-body">
+      <strong id="auth-no-account-email"></strong> doesn't have an oodbo account yet.<br><br>
+      Create one at oodbo.io, then come back and sign in here.
+    </p>
+    <button class="oauth-btn" style="margin-bottom:12px;" onclick="openOodbo()">Create account at oodbo.io</button>
+    <button class="sec-btn" onclick="backToAuthForm()">← Try a different email</button>
+  </div>
+
+  <!-- Not paid / upgrade -->
+  <div id="auth-upgrade" style="display:none; flex-direction:column; padding:28px 20px; flex:1;">
+    <h1>oodbo</h1>
+    <div class="auth-divider" style="margin-top:3px; margin-bottom:22px;"></div>
+    <p class="waiting-title">Upgrade required</p>
+    <p class="waiting-body">
+      The Word add-in is available to paid oodbo accounts.<br><br>
+      Visit oodbo.io to upgrade.
+    </p>
+    <button class="oauth-btn" style="margin-bottom:12px;" onclick="openOodbo()">Upgrade at oodbo.io</button>
+    <button class="sec-btn" onclick="signOut()">sign out</button>
+  </div>
+
+  <!-- Free trial ended -->
+  <div id="auth-trial-ended" style="display:none; flex-direction:column; padding:28px 20px; flex:1;">
+    <h1>oodbo</h1>
+    <div class="auth-divider" style="margin-top:3px; margin-bottom:22px;"></div>
+    <p class="waiting-title">Free trial complete</p>
+    <p class="waiting-body">
+      You've used your <span id="trial-ended-count">10</span> free forwards.<br><br>
+      Get oodbo to keep writing without limits.
+    </p>
+    <button class="oauth-btn" style="margin-bottom:12px;" onclick="openOodbo()">Get oodbo at oodbo.io</button>
+    <button class="sec-btn" onclick="showAuthForm()">Already purchased? Sign in</button>
+  </div>
+
+</div>
+
+<!-- ── Main task pane ──────────────────────────────────────────────────────── -->
+<div id="header">
+  <h1>oodbo</h1>
+  <p>draft without looking back</p>
+</div>
+
+<div id="body">
+
+  <div id="trial-banner" style="display:none; background:#fbf3e2; border-bottom:1px solid var(--line); border-left:2px solid #c8a24a; padding:10px 14px; font-size:11px; color:#7a5a12; flex-shrink:0;">
+    <strong>Free trial</strong> — <span id="trial-count">0</span> forward <span id="trial-noun">trials</span> left.
+    <a href="#" onclick="showAuthForm(); return false;" style="color:#7a5a12;">Sign in</a> ·
+    <a href="#" onclick="openOodbo(); return false;" style="color:#7a5a12;">Get oodbo</a>
+  </div>
+
+  <div class="row">
+    <div class="row-label">Session Start</div>
+    <div class="row-value" id="datetime">--</div>
+  </div>
+
+  <div class="row">
+    <div class="row-label">Session Words</div>
+    <div id="session-count">0</div>
+    <div id="session-target-line"></div>
+  </div>
+
+  <div id="unpublished-banner">Unpublished text waiting — click where you'd like it in your document, then resume to publish.</div>
+
+  <div id="published-banner" style="display:none; background:#f0f4e8; border-bottom:1px solid var(--line); border-left:2px solid #7a9a4a; padding:10px 14px; font-size:11px; color:#4a6a1a; flex-shrink:0;">
+    Published. Click in your document to continue writing.
+  </div>
+
+  <div id="launch-wrap">
+    <button id="launch-btn" onclick="launchDialog()">Write Forward</button>
+    <div id="launch-notice" class="launch-notice"></div>
+  </div>
+
+  <div class="row">
+    <div class="row-label">Word Target</div>
+    <div class="settings-grid">
+      <label>Session</label>
+      <input class="fo-input" type="number" id="word-target" min="0" value="1000" onchange="saveSettings()"/>
+      <span class="settings-unit">words</span>
+    </div>
+  </div>
+
+  <div class="row">
+    <button class="sec-btn" onclick="openShareModal()">Share progress</button>
+  </div>
+
+  <div class="row">
+    <button class="sec-btn" onclick="resetSession()">Reset session</button>
+  </div>
+
+  <div id="quote-area">
+    <div id="quote-text"></div>
+    <div id="quote-attr"></div>
+    <button id="mantra-btn" onclick="openMantraModal()">&#9998; mantra</button>
+  </div>
+
+</div>
+
+<div id="status-bar">
+  <span id="status-msg">Ready</span>
+  <div style="display:flex; align-items:center; gap:8px;">
+    <span id="version-label">v3.0.0</span>
+    <button id="sign-out-btn" onclick="signOut()">sign out</button>
+  </div>
+</div>
+
+<!-- ── Share progress modal ────────────────────────────────────────────────── -->
+<div id="share-overlay" onclick="shareOverlayClick(event)">
+  <div id="share-modal">
+    <h2>Share progress</h2>
+    <p class="share-sub">A card for the eye, a text line for the thread.</p>
+    <canvas id="share-canvas" width="1080" height="1080"></canvas>
+    <p id="share-textline"></p>
+    <div class="share-actions">
+      <button class="share-btn primary"   id="share-copy-card" onclick="copyShareCard()">copy card</button>
+      <button class="share-btn secondary" id="share-copy-text" onclick="copyShareText()">copy text</button>
+    </div>
+    <button id="share-close" onclick="closeShareModal()">close</button>
+  </div>
+</div>
+
+<!-- ── Mantra modal ────────────────────────────────────────────────────────── -->
+<div id="mantra-overlay" onclick="overlayClick(event)">
+  <div id="mantra-modal">
+    <h2>Your mantra</h2>
+    <p>A phrase or intention shown each time you open oodbo, instead of a rotating quote.</p>
+    <textarea id="mantra-textarea" rows="3" placeholder="e.g. Just get it down."></textarea>
+    <div class="modal-actions">
+      <button class="modal-save" onclick="saveMantra()">Save</button>
+      <button class="modal-cancel" onclick="closeMantraModal()">Cancel</button>
+      <button class="modal-clear" onclick="clearMantra()">clear</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Quotes ───────────────────────────────────────────────────────────────────
+  const QUOTES = [
+    { text: "The first draft is just you telling yourself the story.", attr: "— Terry Pratchett" },
+    { text: "You can always edit a bad page. You can't edit a blank page.", attr: "— Jodi Picoult" },
+    { text: "Start writing, no matter what. The water does not flow until the faucet is turned on.", attr: "— Louis L'Amour" },
+    { text: "Don't get it right, get it written.", attr: "— James Thurber" },
+    { text: "A word after a word after a word is power.", attr: "— Margaret Atwood" },
+    { text: "The scariest moment is always just before you start.", attr: "— Stephen King" },
+    { text: "I write to find out what I'm thinking.", attr: "— Joan Didion" },
+    { text: "There is nothing to writing. All you do is sit down at a typewriter and bleed.", attr: "— Red Smith" },
+    { text: "Writing is thinking on paper.", attr: "— William Zinsser" },
+    { text: "The writer who waits for ideal conditions under which to work will die without putting a word on paper.", attr: "— E.B. White" },
+    { text: "One day I will find the right words, and they will be simple.", attr: "— Kerouac" },
+    { text: "Fill your paper with the breathings of your heart.", attr: "— Wordsworth" },
+    { text: "Almost all good writing begins with terrible first efforts.", attr: "— Anne Lamott" },
+    { text: "Quantity produces quality. If you only write a few things, you're doomed.", attr: "— Ray Bradbury" },
+    { text: "The secret of getting ahead is getting started.", attr: "— Mark Twain (probably not, but he gets credit anyway)" },
+    { text: "Do not hoard what seems good for a later place in the book. Give it now.", attr: "— Annie Dillard" },
+    { text: "If you wait for inspiration to write, you're not a writer, you're a waiter.", attr: "— Dan Poynter" },
+    { text: "Write. Rewrite. When not writing or rewriting, read.", attr: "— Larry L. King" },
+    { text: "You have to write the book that wants to be written.", attr: "— Madeleine L'Engle" },
+  ];
+
+  // ── Config / API base ────────────────────────────────────────────────────────
+  // Taskpane is served from the same domain as the API (oodbo.io), so use
+  // relative paths — all fetch calls become /api/auth/... automatically.
+  const _apiBaseUrl = '';
+
+  // ── Storage helpers (OfficeRuntime.storage → localStorage fallback) ──────────
+  async function foGet(key) {
+    try {
+      const v = await OfficeRuntime.storage.getItem(key);
+      if (v != null) return v;
+    } catch(e) {}
+    try { return localStorage.getItem(key); } catch(e) {}
+    return null;
+  }
+
+  async function foSet(key, value) {
+    try { await OfficeRuntime.storage.setItem(key, value); } catch(e) {}
+    try { localStorage.setItem(key, value); } catch(e) {}
+  }
+
+  async function foRemove(key) {
+    try { await OfficeRuntime.storage.removeItem(key); } catch(e) {}
+    try { localStorage.removeItem(key); } catch(e) {}
+  }
+
+  // ── Auth state ───────────────────────────────────────────────────────────────
+  let _pollInterval  = null;
+  let _pollTimeout   = null;
+  let _pollKey       = null;
+  let _pollEmail     = null;
+  let _dotsInterval  = null;
+  let _paid          = false;   // paid entitlement, from /api/auth/me (signed-in users only)
+
+  // ── Anonymous free trial (device-local, no sign-in) ──────────────────────────
+  // The trial is NOT tied to an account — signing in is only for paid users. A device
+  // gets TRIAL_FORWARDS free publish-backs, counted in OfficeRuntime.storage. Publishes
+  // never touch the server, so nothing hangs on the network or an expired token.
+  // Resettable by clearing the add-in cache — accepted (a resetter wasn't going to pay).
+  const TRIAL_FORWARDS = 10;
+  let _trialUsed = 0;                                     // loaded from storage at startup
+  function trialLeft() { return Math.max(0, TRIAL_FORWARDS - _trialUsed); }
+
+  // Called on load — loads the local trial count, then routes: a valid PAID session →
+  // unlimited; otherwise the anonymous trial (or the wall if it's used up). A stored but
+  // unpaid/expired session just falls through to the trial (trial users aren't signed in).
+  async function checkStoredAuth() {
+    _trialUsed = parseInt(await foGet('oodbo:forwards_used') || '0', 10) || 0;
+
+    const token = await foGet('oodbo:session');
+    if (token) {
+      try {
+        const res = await fetch(_apiBaseUrl + '/api/auth/me', {
+          headers: { Authorization: 'Bearer ' + token }
+        });
+        if (res.ok) {
+          const me = await res.json();
+          if (me.paid) { enterPaid(me.email); return; }
+        } else if (res.status === 401) {
+          if (await tryRefreshPaid()) return;   // refreshed into a paid session
+        }
+      } catch(e) { /* offline — fall through to the landing */ }
+    }
+    // Landing = the login page (as before), now with a "Try for free" option. If the
+    // free trial's already used up, land on the wall instead (sign in / get oodbo).
+    if (trialLeft() > 0) { showAuthForm(); }
+    else { showTrialEnded(); }
+  }
+
+  // Try to refresh an expired access token into a PAID session. Returns true (and enters
+  // the paid view) on success; false otherwise — the caller then falls back to the trial.
+  async function tryRefreshPaid() {
+    const refreshToken = await foGet('oodbo:refresh');
+    if (!refreshToken) return false;
+    try {
+      const res = await fetch(_apiBaseUrl + '/api/auth/addin?action=refresh', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (res.ok) {
+        const { access_token, refresh_token } = await res.json();
+        if (access_token)  await foSet('oodbo:session', access_token);
+        if (refresh_token) await foSet('oodbo:refresh', refresh_token);
+        const meRes = await fetch(_apiBaseUrl + '/api/auth/me', {
+          headers: { Authorization: 'Bearer ' + access_token }
+        });
+        if (meRes.ok) {
+          const me = await meRes.json();
+          if (me.paid) { enterPaid(me.email); return true; }
+        }
+      }
+    } catch(e) {}
+    // Not a usable paid session — drop the dead tokens; caller falls back to the trial.
+    await foRemove('oodbo:session');
+    await foRemove('oodbo:refresh');
+    return false;
+  }
+
+  async function sendLink() {
+    const usingKey = document.getElementById('auth-key-row').style.display !== 'none';
+    const email    = usingKey ? '' : document.getElementById('auth-email').value.trim();
+    const password = usingKey ? (document.getElementById('auth-password')?.value || '').trim() : '';
+
+    if (!usingKey && !email) {
+      setAuthStatus('Please enter your email address.', true);
+      return;
+    }
+    if (usingKey && !password) {
+      setAuthStatus('Please enter your access key.', true);
+      return;
+    }
+
+    const btn = document.getElementById('auth-btn');
+    btn.disabled = true;
+    btn.textContent = usingKey ? 'Signing in...' : 'Sending...';
+    setAuthStatus('');
+
+    try {
+      _pollKey = crypto.randomUUID();
+      const body = usingKey
+        ? { password, poll_key: _pollKey }
+        : { email, source: 'addin', poll_key: _pollKey };
+      const res = await fetch(_apiBaseUrl + '/api/auth/magic/request', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setAuthStatus(data.error || 'Could not send link. Try again.', true);
+        btn.disabled = false;
+        btn.textContent = 'Send sign-in link';
+        return;
+      }
+
+      if (data.type === 'no_account') {
+        btn.disabled = false;
+        btn.textContent = 'Send sign-in link';
+        showNoAccount(email);
+        return;
+      }
+
+      if (data.type === 'not_paid') {
+        btn.disabled = false;
+        btn.textContent = 'Send sign-in link';
+        showUpgrade(email);
+        return;
+      }
+
+      // Switch to waiting screen and start polling
+      // For key sign-in, the email comes back from the server in data.email
+      _pollEmail = (usingKey && data.email) ? data.email : email;
+      if (usingKey) {
+        // Key mode — sign in silently without showing the "check your email" screen
+        startPolling(_pollEmail);
+      } else {
+        document.getElementById('auth-waiting-email').textContent = _pollEmail;
+        document.getElementById('auth-form').style.display    = 'none';
+        document.getElementById('auth-waiting').style.display = 'flex';
+        startDotsAnimation();
+        startPolling(_pollEmail);
+      }
+
+    } catch(e) {
+      setAuthStatus('Network error — check your connection and try again.', true);
+      btn.disabled = false;
+      btn.textContent = 'Send sign-in link';
+    }
+  }
+
+  function startPolling(email) {
+    stopPolling();
+    _pollInterval = setInterval(() => pollForSession(email), 2500);
+    // Auto-cancel after 10 minutes
+    _pollTimeout = setTimeout(() => {
+      stopPolling();
+      document.getElementById('auth-waiting').style.display = 'none';
+      document.getElementById('auth-form').style.display    = 'flex';
+      const btn = document.getElementById('auth-btn');
+      btn.disabled = false;
+      btn.textContent = 'Send sign-in link';
+      setAuthStatus('Sign-in link expired — request a new one.', true);
+    }, 10 * 60 * 1000);
+  }
+
+  function stopPolling() {
+    if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
+    if (_pollTimeout)  { clearTimeout(_pollTimeout);   _pollTimeout  = null; }
+    stopDotsAnimation();
+  }
+
+  async function pollForSession(email) {
+    try {
+      const res = await fetch(
+        _apiBaseUrl + '/api/auth/addin?action=session&email=' + encodeURIComponent(email) + '&poll_key=' + encodeURIComponent(_pollKey || '')
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.access_token) {
+        stopPolling();
+        await foSet('oodbo:session', data.access_token);
+        if (data.refresh_token) await foSet('oodbo:refresh', data.refresh_token);
+        try {
+          const meRes = await fetch(_apiBaseUrl + '/api/auth/me', {
+            headers: { Authorization: 'Bearer ' + data.access_token }
+          });
+          if (meRes.ok) {
+            const me = await meRes.json();
+            if (me.paid) { enterPaid(me.email); return; }
+            showUpgrade(me.email);
+            return;
+          }
+        } catch(e) {}
+        enterTrial();   // couldn't confirm paid (me fetch failed) — trial UI; next open re-checks
+      }
+      // data.pending === true → keep polling
+    } catch(e) {}
+  }
+
+  function startOAuth(provider) {
+    const url = location.origin + '/addin-auth.html?provider=' + provider;
+
+    Office.context.ui.displayDialogAsync(
+      url,
+      { width: 50, height: 60, displayInIframe: false },
+      (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          setAuthStatus('Could not open sign-in window — ' + result.error.message, true);
+          return;
+        }
+        const dialog = result.value;
+
+        dialog.addEventHandler(Office.EventType.DialogMessageReceived, async (msg) => {
+          let data;
+          try { data = JSON.parse(msg.message); } catch(e) { return; }
+          dialog.close();
+
+          if (data.type === 'auth_success') {
+            await foSet('oodbo:session', data.access_token);
+            if (data.refresh_token) await foSet('oodbo:refresh', data.refresh_token);
+            try {
+              const meRes = await fetch(_apiBaseUrl + '/api/auth/me', {
+                headers: { Authorization: 'Bearer ' + data.access_token }
+              });
+              if (meRes.ok) {
+                const me = await meRes.json();
+                if (me.paid) { enterPaid(me.email); return; }
+                showUpgrade(me.email);
+                return;
+              }
+            } catch(e) {}
+            enterTrial();   // couldn't confirm paid (me fetch failed) — trial UI; next open re-checks
+          } else {
+            setAuthStatus('Sign-in failed — please try again.', true);
+          }
+        });
+
+        // User closed the dialog without finishing — do nothing
+        dialog.addEventHandler(Office.EventType.DialogEventReceived, () => {});
+      }
+    );
+  }
+
+  function cancelPolling() {
+    stopPolling();
+    _pollEmail = null;
+    document.getElementById('auth-waiting').style.display = 'none';
+    document.getElementById('auth-form').style.display    = 'flex';
+    const btn = document.getElementById('auth-btn');
+    btn.disabled = false;
+    btn.textContent = 'Send sign-in link';
+    setAuthStatus('');
+  }
+
+  async function signOut() {
+    await foRemove('oodbo:session');
+    await foRemove('oodbo:refresh');
+    // Reset key mode back to email mode and clear the key field
+    const keyRow   = document.getElementById('auth-key-row');
+    const emailRow = document.getElementById('auth-email-row');
+    const toggle   = document.getElementById('auth-key-toggle');
+    const btn      = document.getElementById('auth-btn');
+    const label    = document.querySelector('.auth-label');
+    const keyInput = document.getElementById('auth-password');
+    if (keyRow)   { keyRow.style.display = 'none'; }
+    if (emailRow) { emailRow.style.display = 'block'; }
+    if (toggle)   { toggle.textContent = 'Sign in with key'; }
+    if (btn)      { btn.textContent = 'Send sign-in link'; }
+    if (label)    { label.style.display = 'block'; }
+    if (keyInput) { keyInput.value = ''; }
+    showAuthForm();
+    setStatus('Signed out.');
+  }
+
+  function updateTrialBanner() {
+    const el = document.getElementById('trial-banner');
+    if (!el) return;
+    if (_paid) { el.style.display = 'none'; return; }
+    const left = trialLeft();
+    document.getElementById('trial-count').textContent = left;
+    document.getElementById('trial-noun').textContent  = left === 1 ? 'trial' : 'trials';
+    el.style.display = 'block';
+  }
+
+  // Paid, signed-in user → reveal the writing UI, unlimited.
+  function enterPaid(email) {
+    _paid = true;
+    document.getElementById('auth-gate').classList.remove('open');
+    document.getElementById('sign-out-btn').style.display = 'block';
+    updateTrialBanner();
+    setStatus(email ? 'Signed in as ' + email : 'Ready');
+    setTimeout(() => setStatus('Ready'), 4000);
+    initTaskpane();
+  }
+
+  // Anonymous trial (not signed in) → reveal the writing UI with the trial banner, or
+  // the wall if the free forwards are used up.
+  function enterTrial() {
+    _paid = false;
+    if (trialLeft() <= 0) { showTrialEnded(); return; }
+    document.getElementById('auth-gate').classList.remove('open');
+    document.getElementById('sign-out-btn').style.display = 'none';
+    updateTrialBanner();
+    setStatus('Free trial');
+    setTimeout(() => setStatus('Ready'), 4000);
+    initTaskpane();
+  }
+
+  // Free trial used up → the wall: buy, or sign in if already purchased.
+  function showTrialEnded() {
+    document.getElementById('auth-gate').classList.add('open');
+    document.getElementById('auth-form').style.display        = 'none';
+    document.getElementById('auth-waiting').style.display     = 'none';
+    document.getElementById('auth-no-account').style.display  = 'none';
+    document.getElementById('auth-upgrade').style.display     = 'none';
+    document.getElementById('trial-ended-count').textContent  = TRIAL_FORWARDS;
+    document.getElementById('auth-trial-ended').style.display = 'flex';
+    document.getElementById('sign-out-btn').style.display     = 'none';
+  }
+
+  function showNoAccount(email) {
+    document.getElementById('auth-form').style.display         = 'none';
+    document.getElementById('auth-waiting').style.display      = 'none';
+    document.getElementById('auth-upgrade').style.display      = 'none';
+    document.getElementById('auth-trial-ended').style.display  = 'none';
+    document.getElementById('auth-no-account').style.display   = 'flex';
+    document.getElementById('auth-no-account-email').textContent = email;
+  }
+
+  function showUpgrade(email) {
+    document.getElementById('auth-gate').classList.add('open');
+    document.getElementById('auth-form').style.display         = 'none';
+    document.getElementById('auth-waiting').style.display      = 'none';
+    document.getElementById('auth-no-account').style.display   = 'none';
+    document.getElementById('auth-trial-ended').style.display  = 'none';
+    document.getElementById('auth-upgrade').style.display      = 'flex';
+    document.getElementById('sign-out-btn').style.display      = 'block';
+  }
+
+  function backToAuthForm() {
+    document.getElementById('auth-no-account').style.display   = 'none';
+    document.getElementById('auth-upgrade').style.display      = 'none';
+    document.getElementById('auth-trial-ended').style.display  = 'none';
+    document.getElementById('auth-form').style.display         = 'flex';
+    setAuthStatus('');
+    setTimeout(() => document.getElementById('auth-email').focus(), 50);
+  }
+
+  // "Try for free" (on the one sign-in page) → enter the trial: the writing UI if
+  // forwards remain, otherwise the wall. Doubles as the escape from sign-in.
+  function startTrial() { enterTrial(); }
+
+  function openOodbo() {
+    const url = 'https://www.oodbo.io';
+    try { Office.context.ui.openBrowserWindow(url); } catch(e) { window.open(url, '_blank'); }
+  }
+
+  function showAuthForm() {
+    document.getElementById('auth-gate').classList.add('open');
+    document.getElementById('auth-form').style.display         = 'flex';
+    document.getElementById('auth-waiting').style.display      = 'none';
+    document.getElementById('auth-no-account').style.display   = 'none';
+    document.getElementById('auth-upgrade').style.display      = 'none';
+    document.getElementById('auth-trial-ended').style.display  = 'none';
+    document.getElementById('sign-out-btn').style.display = 'none';
+    // Reset form state
+    const btn = document.getElementById('auth-btn');
+    btn.disabled = false;
+    btn.textContent = 'Send sign-in link';
+    setAuthStatus('');
+    setTimeout(() => {
+      const inp = document.getElementById('auth-email');
+      if (inp) inp.focus();
+    }, 50);
+  }
+
+  function togglePasswordRow() {
+    const keyRow   = document.getElementById('auth-key-row');
+    const emailRow = document.getElementById('auth-email-row');
+    const toggle   = document.getElementById('auth-key-toggle');
+    const btn      = document.getElementById('auth-btn');
+    const usingKey = keyRow.style.display !== 'none';
+    const label = document.querySelector('.auth-label');
+    if (usingKey) {
+      // Switch back to email
+      keyRow.style.display   = 'none';
+      emailRow.style.display = 'block';
+      btn.textContent        = 'Send sign-in link';
+      toggle.textContent     = 'Sign in with key';
+      if (label) label.style.display = 'block';
+      setTimeout(() => document.getElementById('auth-email').focus(), 50);
+    } else {
+      // Switch to key
+      emailRow.style.display = 'none';
+      keyRow.style.display   = 'block';
+      btn.textContent        = 'Sign in';
+      toggle.textContent     = 'use email instead';
+      if (label) label.style.display = 'none';
+      setTimeout(() => document.getElementById('auth-password').focus(), 50);
+    }
+  }
+
+  function setAuthStatus(msg, isError) {
+    const el = document.getElementById('auth-status');
+    el.textContent = msg;
+    el.className = isError ? 'error' : '';
+  }
+
+  // Animated dots for the waiting screen
+  const DOT_STATES = ['waiting…', 'waiting…·', 'waiting…··', 'waiting…···'];
+  let _dotIdx = 0;
+  function startDotsAnimation() {
+    stopDotsAnimation();
+    _dotsInterval = setInterval(() => {
+      _dotIdx = (_dotIdx + 1) % DOT_STATES.length;
+      const el = document.getElementById('waiting-indicator');
+      if (el) el.textContent = DOT_STATES[_dotIdx];
+    }, 600);
+  }
+  function stopDotsAnimation() {
+    if (_dotsInterval) { clearInterval(_dotsInterval); _dotsInterval = null; }
+  }
+
+  // ── State ────────────────────────────────────────────────────────────────────
+  let sessionWords      = 0;
+  let sessionStartWords = 0;
+  let sessionStartTime  = null;
+  const WINDOW_SIZE = 5;
+  let settings = { wordTarget: 1000, mantra: '' };
+  const FWD_DRAFT_KEY = 'oodbo:forward_draft';   // durable crash-recovery buffer for the in-progress dialog text
+  let unpublishedText = '';
+  let dialogRef = null;
+  let cursorRange = null;
+  let _justPublished = false;  // hide taskpane after dialog closes post-publish
+
+  // ── Word count helpers ────────────────────────────────────────────────────────
+  function countWords(text) {
+    return (text || '').trim() ? (text || '').trim().split(/\s+/).filter(Boolean).length : 0;
+  }
+
+  async function snapshotDocWordCount() {
+    try {
+      await Word.run(async (ctx) => {
+        ctx.document.body.load('text');
+        await ctx.sync();
+        sessionStartWords = countWords(ctx.document.body.text);
+        sessionWords = 0;
+        sessionStartTime = new Date();
+        updateSessionDisplay();
+        updateDateTime();
+      });
+    } catch(e) {}
+  }
+
+  async function pollDocWordCount() {
+    try {
+      await Word.run(async (ctx) => {
+        ctx.document.body.load('text');
+        await ctx.sync();
+        const current = countWords(ctx.document.body.text);
+        sessionWords = Math.max(0, current - sessionStartWords);
+        updateSessionDisplay();
+      });
+    } catch(e) {}
+  }
+
+  // ── Init — runs after sign-in is confirmed ───────────────────────────────────
+  function initTaskpane() {
+    loadSettings();
+    updateDateTime();
+    snapshotDocWordCount();
+    setInterval(pollDocWordCount, 5000);
+    showQuote();
+    restoreForwardDraft();
+  }
+
+  // ── Forward-draft crash recovery (stored in THIS document's settings) ─────────────────────────
+  // The dialog autosaves its in-progress text to the taskpane (400ms debounce + 1s maxWait); we push
+  // it into the document's own settings, so it travels with the file and reaches disk via the user's
+  // existing AutoSave / AutoRecover (or the dialog's Save button). Living in the document means
+  // reopening a different document never surfaces this one's draft.
+  function saveForwardDraftToDoc(text) {
+    try {
+      Office.context.document.settings.set(FWD_DRAFT_KEY, text);
+      Office.context.document.settings.saveAsync();   // commit into the document (fire-and-forget)
+    } catch (e) {}
+  }
+  function clearForwardDraftFromDoc() {
+    try {
+      Office.context.document.settings.remove(FWD_DRAFT_KEY);
+      Office.context.document.settings.saveAsync();
+    } catch (e) {}
+  }
+  // On-demand Save (dialog Save button) — flushes the document (and thus the draft in settings) to disk.
+  function saveDocument() {
+    if (typeof Word === 'undefined') return;
+    Word.run(ctx => { ctx.document.save(); return ctx.sync(); }).catch(() => {});
+  }
+  // On open: if this document carries an unrecovered draft in its settings, surface it so the next
+  // launch resumes instead of losing it (a crash / window-close leaves it; publish/cancel clear it).
+  function restoreForwardDraft() {
+    try {
+      const saved = Office.context.document.settings.get(FWD_DRAFT_KEY);
+      if (saved && saved.trim() && !unpublishedText) {
+        unpublishedText = saved;
+        document.getElementById('unpublished-banner').classList.add('visible');
+        const btn = document.getElementById('launch-btn');
+        if (btn) btn.textContent = 'Resume writing';
+      }
+    } catch (e) {}
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────────
+  // Key sign-in is a reviewer-only backdoor for Microsoft AppSource review.
+  // OFF in production; flip to true only for a review cycle, then back.
+  const KEY_SIGNIN_ENABLED = false;
+
+  document.addEventListener('DOMContentLoaded', function() {
+    if (KEY_SIGNIN_ENABLED) {
+      var t = document.getElementById('auth-key-toggle');
+      if (t) t.style.display = '';
+    }
+    checkStoredAuth();
+  });
+
+  if (typeof Office !== 'undefined') {
+    Office.onReady(() => {});
+  }
+
+  // ── Quote ─────────────────────────────────────────────────────────────────────
+  function showQuote() {
+    const mantra = (settings.mantra || '').trim();
+    if (mantra) {
+      document.getElementById('quote-text').textContent = '“' + mantra + '”';
+      document.getElementById('quote-attr').textContent = '';
+      document.getElementById('mantra-btn').textContent = '✎ mantra ✓';
+    } else {
+      const q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+      document.getElementById('quote-text').textContent = '“' + q.text + '”';
+      document.getElementById('quote-attr').textContent = q.attr;
+      document.getElementById('mantra-btn').textContent = '✎ mantra';
+    }
+  }
+
+  // ── Mantra modal ──────────────────────────────────────────────────────────────
+  function openMantraModal() {
+    document.getElementById('mantra-textarea').value = settings.mantra || '';
+    document.getElementById('mantra-overlay').classList.add('open');
+    setTimeout(() => document.getElementById('mantra-textarea').focus(), 50);
+  }
+
+  function closeMantraModal() {
+    document.getElementById('mantra-overlay').classList.remove('open');
+  }
+
+  function overlayClick(e) {
+    if (e.target === document.getElementById('mantra-overlay')) closeMantraModal();
+  }
+
+  function saveMantra() {
+    settings.mantra = document.getElementById('mantra-textarea').value.trim();
+    persistSettings();
+    showQuote();
+    closeMantraModal();
+    setStatus(settings.mantra ? 'Mantra saved.' : 'Mantra cleared.');
+  }
+
+  function clearMantra() {
+    document.getElementById('mantra-textarea').value = '';
+    settings.mantra = '';
+    persistSettings();
+    showQuote();
+    closeMantraModal();
+    setStatus('Mantra cleared.');
+  }
+
+  // ── DateTime ─────────────────────────────────────────────────────────────────
+  function updateDateTime() {
+    const t = sessionStartTime;
+    if (!t) { document.getElementById('datetime').textContent = '--'; return; }
+    const opts = { weekday: 'short', month: 'short', day: 'numeric',
+                   hour: '2-digit', minute: '2-digit' };
+    document.getElementById('datetime').textContent =
+      t.toLocaleDateString('en-US', opts);
+  }
+
+  // ── Settings ─────────────────────────────────────────────────────────────────
+  function loadSettings() {
+    try {
+      const s = localStorage.getItem('oodbo_addin_settings');
+      if (s) settings = { ...settings, ...JSON.parse(s) };
+    } catch(e) {}
+    document.getElementById('word-target').value = settings.wordTarget;
+  }
+
+  function saveSettings() {
+    settings.wordTarget = parseInt(document.getElementById('word-target').value) || 0;
+    persistSettings();
+    updateSessionDisplay();
+  }
+
+  function persistSettings() {
+    try { localStorage.setItem('oodbo_addin_settings', JSON.stringify(settings)); } catch(e) {}
+  }
+
+  // ── Session ───────────────────────────────────────────────────────────────────
+  function resetSession() {
+    snapshotDocWordCount();
+    setStatus('Session reset.');
+  }
+
+  function updateSessionDisplay() {
+    document.getElementById('session-count').textContent = sessionWords;
+    const target = settings.wordTarget;
+    const line = document.getElementById('session-target-line');
+    if (target > 0 && sessionWords >= target) {
+      line.textContent = '✓ target reached';
+      line.classList.add('reached');
+    } else {
+      line.textContent = target > 0 ? 'of ' + target : '';
+      line.classList.remove('reached');
+    }
+  }
+
+  // ── Share progress card ────────────────────────────────────────────────────
+  let _shareTextLine = '';
+
+  // "Saturday the 11th of July, 2026" — long log-style date.
+  function logDate(d) {
+    d = d || new Date();
+    const n = d.getDate(), v = n % 100;
+    const suffix = ['th','st','nd','rd'][(v - 20) % 10] || ['th','st','nd','rd'][v] || 'th';
+    const weekday = d.toLocaleDateString('en-US', { weekday: 'long' });
+    const month   = d.toLocaleDateString('en-US', { month: 'long' });
+    return weekday + ' the ' + n + suffix + ' of ' + month + ', ' + d.getFullYear();
+  }
+
+  function drawSessionCard(canvas, words, target, dateStr) {
+    const ctx = canvas.getContext('2d');
+    const W = 1080, H = 1080, cx = W / 2, M = 72;
+    const bg = '#f5f2eb', panel = '#fff', border = '#ddd6c9', text = '#1f1f1f', muted = '#888', accent = '#111';
+
+    ctx.fillStyle = bg;     ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = panel;  ctx.fillRect(M, M, W - 2 * M, H - 2 * M);
+    ctx.fillStyle = accent; ctx.fillRect(M, M, W - 2 * M, 10);
+    ctx.strokeStyle = border; ctx.lineWidth = 2;
+    ctx.strokeRect(M + 1, M + 1, W - 2 * M - 2, H - 2 * M - 2);
+
+    ctx.textAlign = 'center';
+
+    // Eyebrow
+    ctx.fillStyle = muted; ctx.font = 'italic 30px Georgia, serif';
+    ctx.fillText('a forward-only session', cx, M + 130);
+
+    // Hero number — words this session
+    ctx.fillStyle = accent; ctx.font = '600 200px Georgia, serif';
+    ctx.fillText(words.toLocaleString(), cx, 460);
+    ctx.fillStyle = muted;  ctx.font = '34px Georgia, serif';
+    ctx.fillText(words === 1 ? 'word this session' : 'words this session', cx, 528);
+
+    // Progress against target
+    if (target > 0) {
+      const reached = words >= target;
+      const barW = 640, barH = 16, barX = cx - barW / 2, barY = 600;
+      const pct = Math.max(0, Math.min(1, words / target));
+      ctx.fillStyle = '#e7e2d6'; ctx.fillRect(barX, barY, barW, barH);
+      ctx.fillStyle = accent;    ctx.fillRect(barX, barY, barW * pct, barH);
+      ctx.strokeStyle = border;  ctx.lineWidth = 1;
+      ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1);
+      ctx.fillStyle = muted; ctx.font = '28px Georgia, serif';
+      ctx.fillText(
+        reached ? ('target of ' + target.toLocaleString() + ' reached')
+                : (words.toLocaleString() + ' of ' + target.toLocaleString() + ' target'),
+        cx, barY + 62);
+    }
+
+    // Divider
+    ctx.strokeStyle = border; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 90, 758); ctx.lineTo(cx + 90, 758); ctx.stroke();
+
+    // Date
+    ctx.fillStyle = muted; ctx.font = '28px Georgia, serif';
+    ctx.fillText(dateStr, cx, 828);
+
+    // Footer — "written by a human at oodbo.io" (oodbo.io emphasised)
+    const footY = 930, phrase = 'written by a human at ', brand = 'oodbo.io';
+    ctx.textAlign = 'left';
+    ctx.font = 'italic 34px Georgia, serif'; const wPhrase = ctx.measureText(phrase).width;
+    ctx.font = 'bold 34px Georgia, serif';   const wBrand = ctx.measureText(brand).width;
+    const startX = cx - (wPhrase + wBrand) / 2;
+    ctx.fillStyle = muted;  ctx.font = 'italic 34px Georgia, serif'; ctx.fillText(phrase, startX, footY);
+    ctx.fillStyle = accent; ctx.font = 'bold 34px Georgia, serif';   ctx.fillText(brand, startX + wPhrase, footY);
+  }
+
+  function shareTextParts(words, target, dateStr) {
+    const targetPart = target > 0 ? ' (of ' + target.toLocaleString() + ' target)' : '';
+    const lead = words.toLocaleString() + (words === 1 ? ' word this session' : ' words this session')
+      + targetPart + ', ' + dateStr + '. A forward-only session, written by a human at ';
+    return { lead, brand: 'oodbo.io' };
+  }
+
+  function openShareModal() {
+    const target  = settings.wordTarget || 0;
+    const dateStr = logDate();
+    drawSessionCard(document.getElementById('share-canvas'), sessionWords, target, dateStr);
+
+    const parts = shareTextParts(sessionWords, target, dateStr);
+    _shareTextLine = parts.lead + parts.brand;
+    document.getElementById('share-textline').innerHTML =
+      parts.lead + '<a href="https://oodbo.io" target="_blank" rel="noreferrer">' + parts.brand + '</a>';
+
+    document.getElementById('share-copy-card').textContent = 'copy card';
+    document.getElementById('share-copy-text').textContent = 'copy text';
+    document.getElementById('share-overlay').classList.add('open');
+  }
+
+  function closeShareModal() {
+    document.getElementById('share-overlay').classList.remove('open');
+  }
+
+  function shareOverlayClick(e) {
+    if (e.target === document.getElementById('share-overlay')) closeShareModal();
+  }
+
+  function flashShareBtn(id, msg) {
+    const b = document.getElementById(id);
+    if (!b) return;
+    const prev = b.textContent;
+    b.textContent = msg;
+    setTimeout(() => { b.textContent = prev; }, 1500);
+  }
+
+  async function copyShareCard() {
+    const canvas = document.getElementById('share-canvas');
+    try {
+      const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+      if (!blob) throw new Error('no blob');
+      try {
+        await navigator.clipboard.write([new ClipboardItem({
+          'image/png': blob,
+          'text/plain': new Blob([_shareTextLine], { type: 'text/plain' }),
+        })]);
+      } catch (e) {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      }
+      flashShareBtn('share-copy-card', 'copied ✓');
+    } catch (e) {
+      setStatus('Image copy not available here — use copy text.');
+    }
+  }
+
+  async function copyShareText() {
+    try {
+      await navigator.clipboard.writeText(_shareTextLine);
+      flashShareBtn('share-copy-text', 'copied ✓');
+    } catch (e) {
+      setStatus('Could not copy — clipboard blocked.');
+    }
+  }
+
+  // ── Cursor capture ────────────────────────────────────────────────────────────
+  function captureCursor() {
+    return new Promise((resolve) => {
+      Word.run(async (context) => {
+        const sel = context.document.getSelection();
+        sel.load('text');
+        await context.sync();
+        cursorRange = sel;
+        resolve();
+      }).catch(() => resolve());
+    });
+  }
+
+  // A prominent, auto-dismissing notice right under the Write Forward button (the bottom status
+  // line is too small and too far for launch feedback).
+  let _launchNoticeTimer = null;
+  function showLaunchNotice(msg) {
+    const el = document.getElementById('launch-notice');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('visible');
+    if (_launchNoticeTimer) clearTimeout(_launchNoticeTimer);
+    _launchNoticeTimer = setTimeout(() => el.classList.remove('visible'), 6000);
+  }
+  function hideLaunchNotice() {
+    const el = document.getElementById('launch-notice');
+    if (el) el.classList.remove('visible');
+    if (_launchNoticeTimer) { clearTimeout(_launchNoticeTimer); _launchNoticeTimer = null; }
+  }
+
+  // True once the document has a file on disk (saved at least once). Best-effort: if the host can't
+  // tell us, don't block.
+  function isDocumentSaved() {
+    return new Promise(resolve => {
+      try {
+        Office.context.document.getFilePropertiesAsync(res => {
+          const url = res && res.value && res.value.url;
+          resolve(!!(url && String(url).trim()));
+        });
+      } catch (e) { resolve(true); }
+    });
+  }
+
+  // ── Launch dialog ─────────────────────────────────────────────────────────────
+  async function launchDialog() {
+    // Out of free forwards and unpaid → the wall instead of opening the frame, so the
+    // user never writes text they can't publish.
+    if (!_paid && trialLeft() <= 0) { showTrialEnded(); return; }
+    // Require a saved document: the crash-recovery draft lives in the document's settings, which only
+    // persist to disk once the document has a file. An untitled doc has nowhere to save it, so block
+    // until it's saved rather than risk a crash losing the writing.
+    if (!(await isDocumentSaved())) {
+      showLaunchNotice('Save your document first, then start writing forward.');
+      return;
+    }
+    hideLaunchNotice();
+    await captureCursor();
+    const dialogUrl = location.origin + '/dialog.html'
+      + '?windowSize=' + WINDOW_SIZE
+      + '&wordTarget=' + settings.wordTarget
+      + (unpublishedText ? '&resume=' + encodeURIComponent(unpublishedText) : '');
+
+    Office.context.ui.displayDialogAsync(
+      dialogUrl,
+      { width: 100, height: 100, displayInIframe: false },
+      (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          setStatus('Error: ' + result.error.message);
+          return;
+        }
+        dialogRef = result.value;
+        document.getElementById('launch-btn').textContent = 'Write Forward open…';
+
+        dialogRef.addEventHandler(Office.EventType.DialogMessageReceived, onDialogMessage);
+        dialogRef.addEventHandler(Office.EventType.DialogEventReceived,   onDialogEvent);
+      }
+    );
+  }
+
+  // ── Dialog messages ───────────────────────────────────────────────────────────
+  function onDialogMessage(arg) {
+    const msg = JSON.parse(arg.message);
+
+    if (msg.type === 'publish') {
+      handlePublish(msg.text, msg.wordCount);
+
+    } else if (msg.type === 'autosave') {
+      // Crash-recovery draft — pushed into THIS document's settings on the dialog's 400ms debounce
+      // + 1s maxWait, so it's tied to the doc and rides the user's own AutoSave / AutoRecover (and
+      // the Save button) to disk. Reopening a different doc reads its own settings — no cross-doc
+      // misattachment.
+      unpublishedText = msg.text;
+      saveForwardDraftToDoc(msg.text);   // fire-and-forget
+
+    } else if (msg.type === 'save') {
+      saveDocument();
+
+    } else if (msg.type === 'unpublished') {
+      unpublishedText = msg.text;
+      document.getElementById('unpublished-banner').classList.add('visible');
+
+    } else if (msg.type === 'wordcount') {
+      sessionWords += msg.delta;
+      updateSessionDisplay();
+
+    } else if (msg.type === 'close') {
+      dialogRef.close();
+      dialogRef = null;
+      // Clean exit (published, or explicitly cancelled/discarded) — drop the recovery buffer so it
+      // can't resurface. A crash or a window-X close sends no 'close', so those keep the draft.
+      unpublishedText = '';
+      clearForwardDraftFromDoc();
+      document.getElementById('unpublished-banner').classList.remove('visible');
+      document.getElementById('launch-btn').textContent = 'Write Forward';
+      if (_justPublished) {
+        _justPublished = false;
+      }
+      onDialogClosed();
+    }
+  }
+
+  function onDialogEvent(arg) {
+    dialogRef = null;
+    document.getElementById('launch-btn').textContent =
+      unpublishedText ? 'Resume writing' : 'Write Forward';
+    _justPublished = false;
+    onDialogClosed();
+  }
+
+  function onDialogClosed() {
+    if (document.activeElement) document.activeElement.blur();
+  }
+
+  // ── Publish (local free-trial gate) ────────────────────────────────────────────
+  // Consumes one local trial forward (device-level, anonymous) then inserts the text.
+  // No network — the publish never hangs and there's no token to expire. Paid users are
+  // unlimited and skip the counter.
+  function handlePublish(text, wordCount) {
+    if (!_paid) {
+      if (trialLeft() <= 0) {
+        // Free trial's done (guards a second publish within one open) — keep the text
+        // so it isn't lost, and show the wall.
+        unpublishedText = text;
+        document.getElementById('unpublished-banner').classList.add('visible');
+        showTrialEnded();
+        return;
+      }
+      _trialUsed += 1;
+      foSet('oodbo:forwards_used', String(_trialUsed));   // persist (fire-and-forget)
+      updateTrialBanner();
+    }
+
+    insertTextAtCursor(text, wordCount);
+    unpublishedText = '';
+    clearForwardDraftFromDoc();   // published — recovery draft no longer needed
+    document.getElementById('unpublished-banner').classList.remove('visible');
+    _justPublished = true;
+  }
+
+  // ── Insert text ───────────────────────────────────────────────────────────────
+  function insertTextAtCursor(text, wordCount) {
+    Word.run(async (context) => {
+      const sel = context.document.getSelection();
+      sel.load('text');
+      await context.sync();
+
+      let insertText = text;
+
+      // If cursor is collapsed (no selection), check the character immediately
+      // to the left. If it's a non-whitespace character, prepend a space so
+      // the published text doesn't run into existing content.
+      if (sel.text === '') {
+        try {
+          const cursorPoint   = sel.getRange('Start');
+          const para          = sel.paragraphs.getFirst();
+          const paraStart     = para.getRange('Start');
+          const toCursor      = paraStart.expandTo(cursorPoint);
+          toCursor.load('text');
+          await context.sync();
+          if (toCursor.text.length > 0 && !/\s$/.test(toCursor.text)) {
+            insertText = ' ' + text;
+          }
+        } catch(e) {
+          // Can't determine context — insert as-is
+        }
+      }
+
+      const inserted = sel.insertText(insertText, Word.InsertLocation.replace);
+      inserted.select(Word.SelectionMode.end);
+      await context.sync();
+      context.document.body.load('text');
+      await context.sync();
+      sessionWords = Math.max(0, countWords(context.document.body.text) - sessionStartWords);
+      updateSessionDisplay();
+      setStatus('Published — ' + wordCount + ' words added.');
+      // Attempt to return focus to the document (WordApiDesktop 1.4+)
+      try {
+        await Word.run(async (ctx) => {
+          if (Office.context.requirements.isSetSupported('WordApiDesktop', '1.4')) {
+            ctx.document.activeWindow.setFocus();
+            await ctx.sync();
+          } else {
+            // Fallback: show banner prompting user to click
+            const pb = document.getElementById('published-banner');
+            if (pb) { pb.style.display = 'block'; setTimeout(() => { pb.style.display = 'none'; }, 6000); }
+          }
+        });
+      } catch(e) {
+        const pb = document.getElementById('published-banner');
+        if (pb) { pb.style.display = 'block'; setTimeout(() => { pb.style.display = 'none'; }, 6000); }
+      }
+    }).catch((e) => {
+      setStatus('Error: ' + e.message);
+    });
+  }
+
+  function setStatus(msg) {
+    document.getElementById('status-msg').textContent = msg;
+  }
+</script>
+</body>
+</html>

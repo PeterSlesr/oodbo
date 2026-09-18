@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<oodbo version="1">
+  <project id="welcome">
+    <title>oodbo.io</title>
+    <activeChapterId>7ab1bfcd-eb95-4d2b-a3bc-76a44ae9bddc</activeChapterId>
+    <chapters>
+    <chapter id="7ab1bfcd-eb95-4d2b-a3bc-76a44ae9bddc" level="1" createdAt="2026-05-20T10:02:19.153Z" updatedAt="2026-05-20T11:17:50.506Z">
+      <title>welcome :)</title>
+      <content>oodbo is a writing tool built on one idea: you can't edit something that doesn't exist yet.
+
+Two modes. Forward, where you write without the option to go back — no deleting, no rewriting, just motion. And Edit, which is exactly what you'd expect, available once you've given yourself something to work with.
+
+That's it. That's the whole thing.</content>
+      <annotations>
+        <annotation id="e7ad8f9e-694e-4c12-86e3-a86df1da4b54" start="43" end="91" anchorType="content" colorIndex="0" createdAt="2026-05-20T11:16:23.005Z">
+          <anchorText>you can't edit something that doesn't exist yet.</anchorText>
+          <note>"You can always edit a bad page. You can't edit a blank page."
+- Jodi Picoult</note>
+        </annotation>
+      </annotations>
+    </chapter>
+    <chapter id="hero" level="1" createdAt="2026-05-01T00:00:00.000Z" updatedAt="2026-05-20T11:19:24.313Z">
+      <title>draft without looking back</title>
+      <content>Most writing tools get out of the way visually. oodbo gets out of the way mechanically.
+
+Forward mode removes the option to rewrite. Not because your first draft is precious (it isn't) but because the habit of fixing as you go is the habit that kills momentum and calls itself productivity.
+
+Write badly. Write in circles. Write the wrong thing. You can fix all of it later. First it has to exist.</content>
+      <annotations>
+        <annotation id="69b472c9-f412-4f32-b7d4-9ffe4347a45e" start="175" end="183" anchorType="content" colorIndex="0" createdAt="2026-05-20T11:19:24.313Z">
+          <anchorText>it isn't</anchorText>
+          <note>"The first draft of anything is shit."
+- Hemingway (probably, or something like it)</note>
+        </annotation>
+      </annotations>
+    </chapter>
+    <chapter id="rule" level="1" createdAt="2026-05-01T00:00:00.000Z" updatedAt="2026-05-20T11:04:10.399Z">
+      <title>the rule</title>
+      <content>One rule: in Forward mode, you go forward.
+
+You can write a new word, or you can stop. You cannot change the one you just wrote. You cannot go back and fix the sentence from three lines ago. You cannot select, cut, or delete.
+
+What you write stays written. The only direction is forward.</content>
+      <annotations>
+      </annotations>
+    </chapter>
+    <chapter id="why" level="1" createdAt="2026-05-01T00:00:00.000Z" updatedAt="2026-05-20T11:25:09.223Z">
+      <title>why this works</title>
+      <content>Most writing tools give you unlimited freedom to revise. In theory, that is helpful. In practice, it means you spend more time editing the first sentence than writing the second.
+
+There is a voice in every writer's head that reads every word the moment it lands on the page and finds it lacking. It rewrites. It second-guesses. It polishes sentences that do not yet exist in a paragraph that is not yet finished.
+
+The internal critic and the generative voice cannot operate at the same time. When you edit while you write, the critic wins by default. It gets to veto ideas before they're fully formed.
+
+oodbo doesn't silence the critic. It just locks it out of the room until there's something worth criticizing. When the delete key does nothing, the inner critic has nothing to work with. All it can do is watch you write until it's their turn.
+
+The goal is not beautiful first drafts. The goal is first drafts that exist.</content>
+      <annotations>
+      </annotations>
+    </chapter>
+    <chapter id="features" level="1" createdAt="2026-05-01T00:00:00.000Z" updatedAt="2026-05-20T11:12:15.826Z">
+      <title>what you get</title>
+      <content>Cloud sync. Your projects save automatically to a private app folder in your Google Drive or OneDrive — not our servers. This folder is invisible in Drive's regular UI but belongs entirely to you and is included in your Google data exports. oodbo only accesses this private folder and never reads or modifies any other files in your Drive.
+
+Write Forward. A full-screen view that shows only the last few words you wrote. Everything else disappears. The only thing that exists is what comes next.
+
+Annotations. Add notes to any passage without changing it. Observations, reminders, questions for the revision stage - attached to the text without touching it.
+
+Multiple projects. Essays, journals, logs, brainstorms. Each one forward-only, each one its own thread.
+
+Export. When a draft is done, export to .docx and bring it into your editor of choice for the revision that forward-only was never meant to replace.
+
+No AI suggestions. No word count pressure. No features that pull your attention away from the sentence you're writing right now.</content>
+      <annotations>
+      </annotations>
+    </chapter>
+    <chapter id="who" level="1" createdAt="2026-05-01T00:00:00.000Z" updatedAt="2026-05-20T11:12:35.368Z">
+      <title>who it is for</title>
+      <content>Writers who finish less than they start.
+
+People who rewrite the first paragraph until the rest never gets written. Anyone who has closed a draft because it wasn't good enough yet, even though yet never came.
+
+It's also for people who already finish things and want to go faster, but honestly, it was built for the first kind.
+
+Anyone who knows what they want to say but cannot seem to stop fixing long enough to say it.</content>
+      <annotations>
+      </annotations>
+    </chapter>
+    <chapter id="pricing" level="1" createdAt="2026-05-01T00:00:00.000Z" updatedAt="2026-05-20T11:13:04.339Z">
+      <title>pricing</title>
+      <content>Try it free. No account required. Open the editor, start writing, see if the constraint is useful to you.
+
+One-time purchase: $9. Not a subscription. Pay once and the full tool is yours: cloud sync, forward writing, annotations, export, multiple projects. No monthly fee, no renewal, no expiry.</content>
+      <annotations>
+      </annotations>
+    </chapter>
+    <chapter id="18122426-13cd-4bf7-8bde-32fcf10a79a6" level="1" createdAt="2026-05-20T11:09:18.498Z" updatedAt="2026-05-20T11:29:04.896Z">
+      <title>why this exists</title>
+      <content>oodbo exists because I kept editing instead of writing.
+
+Perfectionism can be paralyzing - the inner critic casting too many votes before anything meaningful is even on the page. This tool takes that vote away until I'm ready to give it back.
+
+I built it to write more, and then kept it because it worked.</content>
+      <annotations>
+        <annotation id="fc2041d8-8a3d-4677-8ecb-a93e13257da6" start="57" end="88" anchorType="content" colorIndex="0" createdAt="2026-05-20T11:24:15.232Z">
+          <anchorText>Perfectionism can be paralyzing</anchorText>
+          <note>"Perfectionism is the enemy of creation, as extreme self-solitude is the enemy of well-being."
+- John Updike</note>
+        </annotation>
+      </annotations>
+    </chapter>
+    </chapters>
+  </project>
+</oodbo>

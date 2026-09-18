@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    background: #f5f2eb;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 100vh; margin: 0; gap: 28px;
+  }
+  svg { overflow: visible; }
+  #mark { fill: none; stroke: #111; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+  .cap { font-family: Georgia, serif; font-size: 13px; color: #999; font-style: italic; }
+</style>
+</head>
+<body>
+  <svg width="220" height="130" viewBox="-70 -42 140 84">
+    <path id="mark" d=""></path>
+  </svg>
+  <div class="cap">two o's pinch and cross into ∞ — one continuous stroke, no fade</div>
+
+<script>
+const path = document.getElementById('mark');
+const r = 24, S = 2 * r, N = 220;
+
+// How far the morph goes. Not all the way to the pure lemniscate: at 1.0 the lobes come to
+// points (a bowtie). Holding short keeps a little of the circles' roundness in the tips.
+const MHOLD = 0.82;
+
+// One parametric family, param t ∈ [0, 2π]:
+//   C(t) — two circles tangent at the origin  (reads as "oo")
+//   B(t) — Bernoulli lemniscate, the ∞ symbol's own shape: full oval lobes, not the pointed
+//          teardrops of the Gerono "eight" curve that read as a bowtie.
+// Both pass through the origin at t = π/2, 3π/2 and reach their tips at t = 0, π, so the
+// point-for-point correspondence is exact. Interpolating C→B pinches the two round loops into
+// the crossed lemniscate: a real morph, and rounder than Gerono.
+function point(t, m) {
+  const c = Math.cos(t);
+  let cx, cy;
+  // Both circles traced so C is POINT-symmetric (C(π−t) = −C(t)), matching the Bernoulli
+  // curve. If the two shapes don't share a symmetry, blending them tilts the left and right
+  // halves oppositely and the ∞ comes out lopsided (one loop fat, one pinched). The left
+  // circle's +sin (not −sin) is what keeps the two loops equal.
+  if (c >= 0) { cx =  r + r * Math.cos(2 * t); cy = r * Math.sin(2 * t); }   // right circle
+  else        { cx = -r - r * Math.cos(2 * t); cy = r * Math.sin(2 * t); }   // left circle
+  const den = 1 + Math.sin(t) * Math.sin(t);
+  const bx = S * c / den;
+  const by = S * Math.sin(t) * c / den;
+  return [ (1 - m) * cx + m * bx, (1 - m) * cy + m * by ];
+}
+
+function build(m) {
+  let d = '';
+  for (let i = 0; i <= N; i++) {
+    const [x, y] = point(i / N * 2 * Math.PI, m);
+    d += (i ? 'L' : 'M') + x.toFixed(2) + ' ' + y.toFixed(2) + ' ';
+  }
+  path.setAttribute('d', d + 'Z');
+}
+
+const ease = p => p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p + 2, 3) / 2;   // easeInOutCubic
+
+if (location.search.includes('freeze')) {
+  build(MHOLD);                   // frozen ∞ for inspection
+} else {
+  const MORPH = 1300, HOLD_OO = 1400, HOLD_INF = 2600;
+  let start = null, phase = 'oo';
+  function frame(ts) {
+    if (start === null) start = ts;
+    const t = ts - start;
+    let m;
+    if (phase === 'oo')       { m = 0; if (t >= HOLD_OO) { phase='toInf'; start=ts; } }
+    else if (phase === 'toInf'){ const p = t / MORPH; if (p >= 1) { m = MHOLD; phase='inf'; start=ts; } else m = MHOLD * ease(p); }
+    else if (phase === 'inf')  { m = MHOLD; if (t >= HOLD_INF) { phase='toOo'; start=ts; } }
+    else                       { const p = t / MORPH; if (p >= 1) { m = 0; phase='oo'; start=ts; } else m = MHOLD * ease(1 - p); }
+    build(m);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>
