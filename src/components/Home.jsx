@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import Sessions from './Sessions.jsx';
 import { searchAll } from '../lib/search/index.js';
 import { EDITOR_THEMES } from '../lib/themes.js';
 import { btn, dialog } from '../lib/ui.js';
@@ -285,7 +284,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   const lastActiveRef = useRef(Date.now());
   const [deleteLinkAction, setDeleteLinkAction] = useState('keep'); // 'keep' | 'deactivate'
   const [showBin,          setShowBin]          = useState(false);
-  const [showSessions,     setShowSessions]     = useState(false);
   const [binProjects,      setBinProjects]      = useState([]);
   const [binQuery,         setBinQuery]         = useState('');   // filters the bin by title (within the bin only)
   const [toast,            setToast]            = useState('');   // brief fading confirmation (e.g. "Copied")
@@ -1468,20 +1466,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
           <span style={s.footerDot}>·</span>
           <button style={s.footerBtn} onClick={openSharesPanel}>shared links</button>
         </>}
-        {user && <>
-          <span style={s.footerDot}>·</span>
-          <button style={s.footerBtn} onClick={() => setShowSessions(true)}>sessions</button>
-        </>}
       </footer>
-
-      {showSessions && (
-        <Sessions
-          currentSessionId={localStorage.getItem('fwd:session-id')}
-          th={{ pageBg: '#f5f2eb', text: '#111', chromeBorder: '#ddd6c9', chromeMuted: '#888', chromeFaint: '#aaa' }}
-          onClose={() => setShowSessions(false)}
-        />
-      )}
-
       {/* Shared-links manager — copy / update snapshot / remove, all in one place */}
       {showShares && (
         <div style={dg.overlay} onClick={() => setShowShares(false)}>
