@@ -9,7 +9,6 @@ import AuthCallback from './components/AuthCallback.jsx';
 import DesktopOAuthComplete from './components/DesktopOAuthComplete.jsx';
 import Home from './components/Home.jsx';
 import SharedViewer from './components/SharedViewer.jsx';
-import Admin from './components/Admin.jsx';
 import { initSync, getEngine, teardownSync, runMigration } from './lib/sync/client.js';
 import NotEntitled from './components/NotEntitled.jsx';
 import { PAYMENTS_LIVE } from './lib/constants.js';
@@ -64,9 +63,6 @@ export default function App() {
   if (window.location.pathname.startsWith('/s/')) {
     const shareId = window.location.pathname.slice(3);
     return <SharedViewer id={shareId} />;
-  }
-  if (window.location.pathname === '/admin') {
-    return <Admin />;
   }
   const [user,            setUser]            = useState(null);   // null=checking, false=guest, object=signed-in
   const [showAuth,        setShowAuth]        = useState(() => new URLSearchParams(window.location.search).get('signup') === '1');

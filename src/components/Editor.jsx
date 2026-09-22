@@ -2815,7 +2815,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
       {!isReadOnly && !user && (
         guest ? (
           <div style={{ ...s.trialBanner, background: '#1f1f1f' }}>
-            <span>Guest mode — nothing here is saved or private. Sign in free to keep your writing in your own cloud.</span>
+            <span>Guest mode — nothing here is saved. Sign in free to keep your writing in your own cloud.</span>
             <span style={s.trialActions}>
               <button style={{ ...s.trialSignIn, color: '#fff', fontStyle: 'normal' }} onClick={handleCopyGuest}>
                 {guestCopied ? 'copied ✓' : 'copy your writing'}
