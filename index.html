@@ -47,26 +47,7 @@
   </head>
   <body>
     <div id="root">
-      <!-- Static crawler-visible fallback: a real <h1> + intro text for non-JS
-           crawlers (Bing raw, social, AI bots). React (createRoot) replaces
-           this the instant the app mounts. Styled to match the real landing
-           hero so there is no visible flash on load. -->
-      <div style="height:100%;display:flex;flex-direction:column;background:#f5f2eb;color:#1f1f1f;font-family:Georgia,serif">
-        <nav style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(20px,4vw,40px);height:54px;border-bottom:1px solid #ddd6c9">
-          <span style="font-size:16px;font-style:italic;color:#8a847a;letter-spacing:-0.02em">oodbo.io</span>
-          <span style="display:flex;align-items:center;gap:18px">
-            <span style="font-style:italic;font-size:13px;color:#8a847a">sign in</span>
-            <span style="font-style:italic;font-size:13px;color:#555;border:1px solid #ddd6c9;padding:6px 14px">get oodbo</span>
-          </span>
-        </nav>
-        <div style="flex:1;overflow-y:auto;scrollbar-gutter:stable">
-          <div style="text-align:center;max-width:600px;margin:0 auto;padding:clamp(56px,8vw,88px) clamp(20px,4vw,32px) clamp(44px,6vw,64px)">
-            <p style="font-size:12px;font-style:italic;color:#a8a091;letter-spacing:0.08em;margin:0 0 20px">a forward-only writing tool</p>
-            <h1 style="font-size:clamp(40px,7vw,68px);font-weight:normal;font-style:italic;letter-spacing:-0.03em;line-height:1.08;color:#111;margin:0 0 26px">Draft without looking back.</h1>
-            <p style="font-size:17px;line-height:1.8;color:#4a453d;max-width:500px;margin:0 auto 36px">Forward Mode removes the option to edit: no backspace, no delete, nothing in your way. Your first draft isn't precious. Getting it out of your head is.</p>
-          </div>
-        </div>
-      </div>
+      <div style="height:100%;display:flex;align-items:center;justify-content:center;background:#f5f2eb;color:#8a847a;font-family:Georgia,serif;font-style:italic;font-size:20px">you're cute :)</div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
