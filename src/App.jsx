@@ -10,7 +10,6 @@ import DesktopOAuthComplete from './components/DesktopOAuthComplete.jsx';
 import Home from './components/Home.jsx';
 import SharedViewer from './components/SharedViewer.jsx';
 import Admin from './components/Admin.jsx';
-import Landing from './components/Landing.jsx';
 import { initSync, getEngine, teardownSync, runMigration } from './lib/sync/client.js';
 import NotEntitled from './components/NotEntitled.jsx';
 import { PAYMENTS_LIVE } from './lib/constants.js';
