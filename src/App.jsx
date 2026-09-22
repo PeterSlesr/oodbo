@@ -8,7 +8,6 @@ import Auth from './components/Auth.jsx';
 import AuthCallback from './components/AuthCallback.jsx';
 import DesktopOAuthComplete from './components/DesktopOAuthComplete.jsx';
 import Home from './components/Home.jsx';
-import SharedViewer from './components/SharedViewer.jsx';
 import { initSync, getEngine, teardownSync, runMigration } from './lib/sync/client.js';
 import NotEntitled from './components/NotEntitled.jsx';
 import { PAYMENTS_LIVE } from './lib/constants.js';
@@ -59,10 +58,6 @@ export default function App() {
   }
   if (window.location.pathname === '/desktop/oauth-complete') {
     return <DesktopOAuthComplete />;
-  }
-  if (window.location.pathname.startsWith('/s/')) {
-    const shareId = window.location.pathname.slice(3);
-    return <SharedViewer id={shareId} />;
   }
   const [user,            setUser]            = useState(null);   // null=checking, false=guest, object=signed-in
   const [showAuth,        setShowAuth]        = useState(() => new URLSearchParams(window.location.search).get('signup') === '1');
