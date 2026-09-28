@@ -9,7 +9,7 @@
 // A kill-switch (localStorage 'oodbo:sync-off' = '1') also forces local-only, so a
 // misbehaving engine can be stopped in production without a redeploy.
 
-import { createIdbAdapter, closeDB, newSyncRecord, commitClean, isStuckDirty } from './store.js';
+import { createIdbAdapter, closeDB, wipeLocalData, newSyncRecord, commitClean, isStuckDirty } from './store.js';
 import { createWebCloud } from './webCloud.js';
 import { wrapCloudWithEncryption } from '../contentCrypto.js';
 import { createEngine } from './engine.js';
@@ -17,6 +17,7 @@ import { createForkHandler } from './fork.js';
 import { canonicalHash, hashXml, parseOodbo } from './canonical.js';
 
 const SYNC_OFF_KEY = 'oodbo:sync-off';
+const OWNER_KEY    = 'oodbo:owner';   // last signed-in account; a change triggers a local wipe (isolation)
 
 let _engine = null, _adapter = null, _cloud = null, _forkHandler = null, _provider = null, _owner = null;
 
@@ -39,9 +40,17 @@ function webDeviceLabel() {
 // Build (or rebuild) the engine for a signed-in, paid, cloud-connected user.
 // `getToken` is async → current Supabase access token (or the untrusted-device JWT).
 // `hooks` are the app's UI bridges: onBoot(projectId,msg), onReauth(), onBadge(evt).
-export function initSync({ user, getToken, hooks = {} }) {
+export async function initSync({ user, getToken, hooks = {} }) {
   if (killed())                        return null;
   if (!user?.provider)  return null;   // guest → local-only
+
+  // Account isolation: if a DIFFERENT account used this browser last, wipe its local data
+  // before touching anything, so cross-account bleed is impossible on a shared browser.
+  try {
+    const prev = localStorage.getItem(OWNER_KEY);
+    if (prev && prev !== user.email) await wipeLocalData();
+    localStorage.setItem(OWNER_KEY, user.email);
+  } catch {}
 
   _provider = user.provider;
   _owner    = user.email;
@@ -222,6 +231,15 @@ export function teardownSync() {
   _owner = null;
   setReachable(true);   // no engine ⇒ nothing is failing; don't leave a stale banner up
   closeDB();
+}
+
+// Sign-out: wipe THIS account's local data and forget the owner, then tear the engine down —
+// so nothing afterward can re-read another account's leftovers. Cloud is the source of truth,
+// so the wipe loses nothing (next sign-in re-pulls).
+export async function clearLocalSession() {
+  try { await wipeLocalData(); } catch {}
+  try { localStorage.removeItem(OWNER_KEY); } catch {}
+  teardownSync();
 }
 
 // ── Migration (§12) ─────────────────────────────────────────────────────────────

@@ -117,6 +117,24 @@ export function closeDB() {
   if (p) p.then(db => db.close()).catch(() => {});
 }
 
+// Clear ALL per-account sync state (content, records, and the dirtySet/meta). Called on
+// sign-out and when the signed-in account changes, so one account's local data can never
+// leak into another's session on a shared browser. The cloud is the source of truth, so
+// nothing is lost — the next sign-in re-pulls. Leaves the legacy 'handles'/'wordAssets'
+// stores alone (not account content).
+export async function wipeLocalData() {
+  const db = await openDB();
+  await new Promise((res, rej) => {
+    const tx = db.transaction(['projects', 'syncRecords', 'syncMeta'], 'readwrite');
+    tx.objectStore('projects').clear();
+    tx.objectStore('syncRecords').clear();
+    tx.objectStore('syncMeta').clear();
+    tx.oncomplete = () => res();
+    tx.onerror    = () => rej(tx.error);
+    tx.onabort    = () => rej(tx.error);
+  });
+}
+
 const reqToPromise = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const txDone       = tx => new Promise((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
 

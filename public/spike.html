@@ -20,6 +20,7 @@
   <p class="sub">Proves the "no server" idea using Google Identity Services: the browser gets a Drive token directly (no secret, no backend), then reads/writes Drive. Use a <strong>dummy Google account</strong>.</p>
 
   <button id="signin">Sign in with Google</button>
+  <button id="listonly">List my Drive files (read-only)</button>
   <button id="reset">Clear log</button>
 
   <div id="summary"></div>
@@ -38,6 +39,7 @@
 
     // ── Step 1: get a Drive access token straight in the browser (GIS) ──
     let tokenClient = null;
+    let mode = 'test';   // 'test' = write/read/delete; 'list' = read-only list
     function ensureClient() {
       if (tokenClient) return tokenClient;
       if (!(window.google && google.accounts && google.accounts.oauth2)) {
@@ -54,11 +56,27 @@
             return;
           }
           log('✓ got an access token via GIS — no secret, no server.');
-          log('  expires_in: ' + resp.expires_in + 's   scope: ' + resp.scope);
-          driveTest(resp.access_token);
+          if (mode === 'list') listOnly(resp.access_token); else driveTest(resp.access_token);
         },
       });
       return tokenClient;
+    }
+
+    // Read-only: list everything in this account's hidden appDataFolder. Touches nothing.
+    async function listOnly(accessToken) {
+      const auth = { Authorization: 'Bearer ' + accessToken };
+      try {
+        log('\nListing appDataFolder (read-only) ...');
+        const r = await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc", { headers: auth });
+        log('  status: ' + r.status);
+        const { files } = await r.json();
+        if (!files || !files.length) { log('  (empty — no files in this account\'s app folder)'); summary('This account\'s Drive app folder is empty.', true); return; }
+        log('  ' + files.length + ' file(s):');
+        for (const f of files) log('   · ' + f.name + '   (modified ' + f.modifiedTime + ')');
+        summary(files.length + ' file(s) in this account\'s hidden Drive folder — see log.', true);
+      } catch (e) {
+        log('  list THREW: ' + e); summary('✗ list failed (see log)', false);
+      }
     }
 
     // ── Step 2: real Drive read/write in the appDataFolder ────────
