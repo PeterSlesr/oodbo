@@ -73,7 +73,9 @@ function requestToken({ interactive, scope, hint }) {
         },
         error_callback: (err) => reject(new Error(err?.type || 'gis_error')),
       });
-      client.requestAccessToken(interactive ? {} : { prompt: '' });
+      // interactive → popup (needs a user gesture); silent → prompt:'none' = no UI, use the
+      // existing Google session via a hidden iframe; errors cleanly if interaction is required.
+      client.requestAccessToken(interactive ? {} : { prompt: 'none' });
     }).catch(reject);
   });
 }
@@ -89,8 +91,8 @@ async function fetchEmail(accessToken) {
 
 // Interactive sign-in (call from a click). Pops Google account/consent for the SYNC scope,
 // then resolves the signed-in user. Throws if the user cancels or something fails.
-export async function signIn() {
-  _syncTok = await requestToken({ interactive: true, scope: SYNC_SCOPE });
+export async function signIn(hint) {
+  _syncTok = await requestToken({ interactive: true, scope: SYNC_SCOPE, hint: hint || undefined });
   _email = await fetchEmail(_syncTok.accessToken);
   return { provider: 'google', email: _email };
 }

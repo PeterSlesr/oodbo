@@ -66,8 +66,9 @@ export default function ShareView({ fileId }) {
 
 // Plain parchment styling for now — replaced by the CRT/phosphor look in the aesthetic pass.
 const s = {
-  page:    { minHeight: '100%', background: '#f5f2eb', color: '#1f1f1f', padding: '48px 20px', display: 'flex', justifyContent: 'center' },
-  article: { maxWidth: 680, width: '100%', fontFamily: 'Georgia, "Times New Roman", serif' },
+  // The app root is height:100%/overflow:hidden, so the viewer must be its own scroll container.
+  page:    { height: '100%', overflowY: 'auto', background: '#f5f2eb', color: '#1f1f1f' },
+  article: { maxWidth: 680, width: '100%', margin: '0 auto', padding: '48px 20px', fontFamily: 'Georgia, "Times New Roman", serif' },
   title:   { fontSize: 30, fontWeight: 'normal', margin: '0 0 12px', lineHeight: 1.2 },
   rule:    { height: 1, background: '#ddd6c9', margin: '0 0 28px' },
   section: { margin: '0 0 24px' },

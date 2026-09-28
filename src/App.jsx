@@ -71,9 +71,9 @@ export default function App() {
   const syncLastAtRef      = useRef(0);     // timestamp of last manual sync — rate-limits the sync button
 
   useEffect(() => {
-    // Unplugged: no server session to resolve, so start as a guest. The user connects a
-    // cloud (Google) via the sign-in button when they want sync. Silent auto-restore across
-    // reloads can be added later once GIS silent-refresh is smoothed out.
+    // GIS access tokens are popup-based (they need a user gesture), so a new tab/reload can't
+    // silently restore the session — we start as guest. The "sign in" button resumes in one
+    // click, pre-selecting the last account (see handleProviderSignIn) so it skips the chooser.
     setUser(false);
   }, []);
 
@@ -99,19 +99,13 @@ export default function App() {
     return () => { try { delete window.__forceReconnect; } catch {} };
   }, []);
 
-  async function handleProviderSignIn() {
-    let u;
-    try {
-      u = await providerSignIn();                 // { provider: 'google', email }
-    } catch (e) {
-      console.warn('sign-in cancelled/failed:', e);
-      return;
-    }
+  // Shared post-auth path: used by both interactive sign-in and silent boot restore.
+  async function enterSignedIn(u) {
     const me = { ...u, paid: true };              // free for everyone; paid kept truthy for old checks
     setUser(me);
     try { localStorage.setItem('fwd:user', JSON.stringify(me)); } catch {}
     setShowAuth(false);
-    setSyncReconnect(false);   // we just (re)authed — clear any "storage disconnected" banner
+    setSyncReconnect(false);   // (re)authed — clear any "storage disconnected" banner
     setView('home');
     setInitialSyncing(true);
     await initSync({
@@ -126,6 +120,20 @@ export default function App() {
     await runMigration();
     await getEngine()?.sweepAll();
     setInitialSyncing(false);
+  }
+
+  async function handleProviderSignIn() {
+    let u;
+    try {
+      // Pre-select the last account (from a prior session) so resuming is one click, no chooser.
+      let hint;
+      try { hint = JSON.parse(localStorage.getItem('fwd:user') || 'null')?.email; } catch {}
+      u = await providerSignIn(hint);             // { provider: 'google', email }
+    } catch (e) {
+      console.warn('sign-in cancelled/failed:', e);
+      return;
+    }
+    await enterSignedIn(u);
   }
   async function handleSignOut() {
     try { await providerSignOut(); } catch (err) { console.warn('sign-out error:', err); }
