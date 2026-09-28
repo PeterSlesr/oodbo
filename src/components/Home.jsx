@@ -6,8 +6,6 @@ import BodyScrollLock from '../lib/BodyScrollLock.jsx';
 import JSZip from 'jszip';
 import { exportDocx } from '../lib/docx.js';
 import { exportPdf }  from '../lib/pdf.js';
-import { supabase }   from '../lib/supabase.js';
-import { acceptShareTos } from '../lib/api.js';
 import { PAYMENTS_LIVE } from '../lib/constants.js';
 import { openDB } from '../lib/sync/store.js';   // single IDB opener (v4) — see store.js
 import { getEngine, getSyncBadges, resolveConflict, reassignFork } from '../lib/sync/client.js';
@@ -24,13 +22,12 @@ const MS_STORE_URL  = 'https://marketplace.microsoft.com/en-us/product/office/WA
 const lsUrl = () => LS_WEB;   // direct product checkout, not the store root
 
 // ── Cloud fetch (mirrors Editor.jsx) ──────────────────────────────────────────
+// Share subsystem deferred (no server) — stubbed so the app builds without Supabase/api.
 async function cloudFetch(url, opts = {}) {
-  const { data: { session } } = await supabase.auth.getSession();
   return fetch(url, {
     ...opts,
     headers: {
       ...opts.headers,
-      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
     },
   });
 }
@@ -771,12 +768,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   function openExternal(_e, _url) { /* web: native <a target="_blank"> handles it */ }
 
   async function handleAcceptShareTos() {
-    setTosAccepting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const ok = await acceptShareTos(session?.access_token);
-      if (ok) { setTosAccepted(true); setTosChecked(false); }
-    } catch {}
+    // Share deferred (no server ToS endpoint) — no-op until the share rework.
     setTosAccepting(false);
   }
 

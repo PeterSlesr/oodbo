@@ -3,7 +3,6 @@ import { EDITOR_THEMES } from './lib/themes.js';
 import { btn } from './lib/ui.js';
 import Editor from './components/Editor.jsx';
 import Auth from './components/Auth.jsx';
-import AuthCallback from './components/AuthCallback.jsx';
 import DesktopOAuthComplete from './components/DesktopOAuthComplete.jsx';
 import Home from './components/Home.jsx';
 import { initSync, getEngine, clearLocalSession, runMigration } from './lib/sync/client.js';
@@ -42,9 +41,6 @@ export default function App() {
   if (import.meta.env.DEV && window.location.pathname === '/preview') {
     const PreviewHarness = React.lazy(() => import('./components/PreviewHarness.jsx'));
     return <React.Suspense fallback={null}><PreviewHarness /></React.Suspense>;
-  }
-  if (window.location.pathname === '/auth/callback') {
-    return <AuthCallback />;
   }
   if (window.location.pathname === '/desktop/oauth-complete') {
     return <DesktopOAuthComplete />;

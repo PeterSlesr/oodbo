@@ -7,8 +7,6 @@ import BodyScrollLock from '../lib/BodyScrollLock.jsx';
 import GuestTour from './GuestTour.jsx';
 import { exportDocx } from '../lib/docx.js';
 import { exportPdf }  from '../lib/pdf.js';
-import { supabase } from '../lib/supabase.js';
-import { acceptShareTos } from '../lib/api.js';
 import JSZip from 'jszip';
 import { PAYMENTS_LIVE } from '../lib/constants.js';
 import { loadGuestDraft, saveGuestDraft } from '../lib/guestStore.js';
@@ -1384,24 +1382,12 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
 
   // ── Cloud sync helpers ────────────────────────────────────────────────────────
 
-  async function getCloudSession() {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
-  }
+  // Share subsystem is deferred (no server). These are stubbed so the app builds without
+  // Supabase/api; share calls reach no backend and fail gracefully until the share rework.
+  async function getCloudSession() { return null; }
 
   async function cloudFetch(path, options = {}) {
-    // Try to get a valid session — Supabase will auto-refresh if needed
-    let token = await getCloudSession();
-    if (!token) {
-      // Session may be mid-refresh (e.g. computer just woke up) — try once more
-      await new Promise(r => setTimeout(r, 1500));
-      token = await getCloudSession();
-    }
-    if (!token) throw new Error('no-session');
-    return fetch(path, {
-      ...options,
-      headers: { Authorization: `Bearer ${token}`, ...options.headers },
-    });
+    return fetch(path, { ...options, headers: { ...options.headers } });
   }
 
   // If the user arrived via "Try it free →", open Forward mode automatically
@@ -1439,12 +1425,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   // ── Share helpers ────────────────────────────────────────────────────────────
 
   async function handleAcceptShareTos() {
-    setTosAccepting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const ok = await acceptShareTos(session?.access_token);
-      if (ok) { setTosAccepted(true); setTosChecked(false); }
-    } catch {}
+    // Share deferred (no server ToS endpoint) — no-op until the share rework.
     setTosAccepting(false);
   }
 
