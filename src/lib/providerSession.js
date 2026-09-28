@@ -12,21 +12,24 @@
 // session is still alive, otherwise the caller surfaces a "reconnect". That is the whole
 // cost of holding nothing (plan decision 01).
 //
-// Microsoft is deferred (it uses MSAL.js, a separate library); this module is Google-only
-// for now, but exposes a provider-neutral surface so azure can slot in later.
+// Two scopes, kept separate on purpose:
+//   SYNC  (drive.appdata) — granted at sign-in; the hidden per-app folder the engine uses.
+//   SHARE (drive.file)    — the narrow "only files this app creates" scope, requested
+//                           INCREMENTALLY the first time a user publishes a share, so a
+//                           non-sharer never grants it.
+//
+// Microsoft is deferred (it uses MSAL.js, a separate library); this module is Google-only.
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   '489322279186-9jg8oj1e3o74d3v47gsvtlr326if4e51.apps.googleusercontent.com';
 
-// openid/email/profile identify the user; drive.appdata is the hidden per-app folder the
-// sync engine reads/writes. Same scope set the spike proved.
-const SCOPE = 'openid email profile https://www.googleapis.com/auth/drive.appdata';
-const GIS_SRC = 'https://accounts.google.com/gsi/client';
-const USERINFO = 'https://www.googleapis.com/oauth2/v3/userinfo';
+const SYNC_SCOPE  = 'openid email profile https://www.googleapis.com/auth/drive.appdata';
+const SHARE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const GIS_SRC   = 'https://accounts.google.com/gsi/client';
+const USERINFO  = 'https://www.googleapis.com/oauth2/v3/userinfo';
 
-// Refresh a bit BEFORE the real expiry so an in-flight sync call never rides a token that
-// dies mid-request.
+// Refresh a bit BEFORE the real expiry so an in-flight call never rides a token that dies.
 const EXPIRY_SKEW_MS = 60_000;
 
 // ── GIS library loader (injected once, on demand) ────────────────────────────────
@@ -47,34 +50,28 @@ function loadGis() {
   return _gisPromise;
 }
 
-// ── In-memory session state (never persisted; a reload re-requests silently) ──────
-let _token = null;    // { accessToken, expiresAt }
-let _email = null;
-let _inflight = null;  // dedupes concurrent silent refreshes
+// ── In-memory token caches (never persisted; a reload re-requests silently) ────────
+let _syncTok  = null;   // { accessToken, expiresAt } for SYNC_SCOPE
+let _shareTok = null;   // { accessToken, expiresAt } for SHARE_SCOPE
+let _email    = null;
+let _inflight = null;   // dedupes concurrent silent sync refreshes
 
-function tokenIsFresh() {
-  return !!_token && Date.now() < _token.expiresAt - EXPIRY_SKEW_MS;
-}
+const isFresh = (t) => !!t && Date.now() < t.expiresAt - EXPIRY_SKEW_MS;
 
-// One GIS token request. `interactive` true = allow the account/consent popup (needs a user
-// gesture); false = attempt a silent refresh (no UI) and reject if interaction is required.
-function requestToken({ interactive }) {
+// One GIS token request for a given scope. `interactive` true = allow the account/consent
+// popup (needs a user gesture); false = attempt a silent refresh and reject if UI is needed.
+function requestToken({ interactive, scope }) {
   return new Promise((resolve, reject) => {
     loadGis().then(() => {
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: SCOPE,
+        scope,
         callback: (resp) => {
           if (resp.error) { reject(new Error(resp.error)); return; }
-          _token = {
-            accessToken: resp.access_token,
-            expiresAt: Date.now() + (Number(resp.expires_in) || 3600) * 1000,
-          };
-          resolve(resp.access_token);
+          resolve({ accessToken: resp.access_token, expiresAt: Date.now() + (Number(resp.expires_in) || 3600) * 1000 });
         },
         error_callback: (err) => reject(new Error(err?.type || 'gis_error')),
       });
-      // interactive → let GIS show the picker/consent as needed; silent → prompt:''.
       client.requestAccessToken(interactive ? {} : { prompt: '' });
     }).catch(reject);
   });
@@ -89,22 +86,32 @@ async function fetchEmail(accessToken) {
 
 // ── Public surface ────────────────────────────────────────────────────────────────
 
-// Interactive sign-in (call from a click). Pops Google account/consent, then resolves the
-// signed-in user. Throws if the user cancels or something fails.
+// Interactive sign-in (call from a click). Pops Google account/consent for the SYNC scope,
+// then resolves the signed-in user. Throws if the user cancels or something fails.
 export async function signIn() {
-  const accessToken = await requestToken({ interactive: true });
-  _email = await fetchEmail(accessToken);
+  _syncTok = await requestToken({ interactive: true, scope: SYNC_SCOPE });
+  _email = await fetchEmail(_syncTok.accessToken);
   return { provider: 'google', email: _email };
 }
 
-// The one method the sync engine needs: a currently-valid access token. Returns the cached
-// token while fresh, else silently re-requests. Rejects if a silent refresh needs the user
-// (caller shows "reconnect").
+// The one method the sync engine needs: a currently-valid SYNC access token. Cached while
+// fresh, else silently re-requested. Rejects if a silent refresh needs the user.
 export async function getValidProviderAccessToken() {
-  if (tokenIsFresh()) return _token.accessToken;
+  if (isFresh(_syncTok)) return _syncTok.accessToken;
   if (_inflight) return _inflight;
-  _inflight = requestToken({ interactive: false }).finally(() => { _inflight = null; });
+  _inflight = requestToken({ interactive: false, scope: SYNC_SCOPE })
+    .then(t => { _syncTok = t; return t.accessToken; })
+    .finally(() => { _inflight = null; });
   return _inflight;
+}
+
+// A SHARE-scope (drive.file) token, for publishing/unpublishing shares. Requested
+// interactively the first time (incremental consent, fired from a user's "share" click);
+// cached and reused after. Separate from the sync token so non-sharers never grant it.
+export async function getShareAccessToken() {
+  if (isFresh(_shareTok)) return _shareTok.accessToken;
+  _shareTok = await requestToken({ interactive: true, scope: SHARE_SCOPE });
+  return _shareTok.accessToken;
 }
 
 // Best-effort silent restore on app boot: if the Google session is alive and previously
@@ -119,10 +126,10 @@ export function getUserEmail() { return _email; }
 export function isSignedIn() { return !!_email; }
 
 export async function signOut() {
-  const token = _token?.accessToken;
-  _token = null;
+  const tokens = [_syncTok?.accessToken, _shareTok?.accessToken].filter(Boolean);
+  _syncTok = _shareTok = null;
   _email = null;
-  if (token && window.google?.accounts?.oauth2?.revoke) {
-    try { window.google.accounts.oauth2.revoke(token, () => {}); } catch {}
+  if (window.google?.accounts?.oauth2?.revoke) {
+    for (const t of tokens) { try { window.google.accounts.oauth2.revoke(t, () => {}); } catch {} }
   }
 }

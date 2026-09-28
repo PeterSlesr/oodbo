@@ -7,6 +7,8 @@ import BodyScrollLock from '../lib/BodyScrollLock.jsx';
 import GuestTour from './GuestTour.jsx';
 import { exportDocx } from '../lib/docx.js';
 import { exportPdf }  from '../lib/pdf.js';
+import { publishShare, unpublishShare } from '../lib/share.js';
+import { getShareAccessToken } from '../lib/providerSession.js';
 import JSZip from 'jszip';
 import { PAYMENTS_LIVE } from '../lib/constants.js';
 import { loadGuestDraft, saveGuestDraft } from '../lib/guestStore.js';
@@ -979,9 +981,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   const [markerYs,    setMarkerYs]    = useState({});
   const [copiedId,    setCopiedId]    = useState(null);
   const [shareModal,   setShareModal]   = useState(false);  // share dialog open
-  const [shareLinks,    setShareLinks]    = useState(() => {  // { [projectId:chapterId]: shareId }
-    try { return JSON.parse(localStorage.getItem(`fwd:shares:${user?.email || ''}`) || '{}'); } catch { return {}; }
-  });
+  const [shareLinks,    setShareLinks]    = useState({});  // { [shareKey]: driveUrl } — derived from project.shares
   const [shareStatuses, setShareStatuses] = useState(() => {  // { [shareId]: 'reported'|'blocked'|'active' }
     try { return JSON.parse(localStorage.getItem(`fwd:share-statuses:${user?.email || ''}`) || '{}'); } catch { return {}; }
   });
@@ -1004,7 +1004,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   const [tourSkipped, setTourSkipped] = useState(false);
   const [getOodboOpen, setGetOodboOpen] = useState(false);  // "copy your writing?" gate before the store
   // TOS acceptance state — initialised from user prop; updated locally after acceptance
-  const [tosAccepted,   setTosAccepted]   = useState(() => !!user?.tosShareAccepted);
+  const [tosAccepted,   setTosAccepted]   = useState(true);   // Option A: content lives in the user's own Drive — no hosted moderation, no policy gate
   const [tosChecked,    setTosChecked]    = useState(false);
   const [tosAccepting,  setTosAccepting]  = useState(false);
   const [editorTheme, setEditorTheme] = useState(
@@ -1435,70 +1435,71 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
 
   async function handleShare(chapterId) {
     if (!user) { onSignIn(); return; }
-    const key = shareKey(projectRef.current.id, chapterId);
+    const p   = projectRef.current;
+    const key = shareKey(p.id, chapterId);
     setShareLoading(key);
     try {
-      const p        = projectRef.current;
-      const snapshot = chapterId
-        ? { content: p.chapters.find(c => c.id === chapterId)?.content || '', title: p.chapters.find(c => c.id === chapterId)?.title || '' }
-        : { chapters: p.chapters.map(c => ({ id: c.id, title: c.title, content: c.content, level: c.level || 1 })) };
-      const title = chapterId
-        ? (p.chapters.find(c => c.id === chapterId)?.title || p.title || 'Untitled')
-        : (p.title || 'Untitled');
-
-      const res = await cloudFetch('/api/share', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ projectId: p.id, chapterId: chapterId || null, title, snapshot }),
+      // Build the shareable content (whole project, or one section) and render it to a PDF.
+      const sec   = chapterId ? p.chapters.find(c => c.id === chapterId) : null;
+      const title = (sec ? sec.title : p.title) || 'Untitled';
+      const data  = sec ? { title, chapters: [{ content: sec.content || '', level: 1 }] } : p;
+      const blob  = exportPdf(data);
+      const safe  = (title.replace(/[^\w .-]+/g, ' ').trim() || 'oodbo');
+      // Publish to the user's visible Drive as an "anyone with the link" file (Option A).
+      const { fileId, url } = await publishShare({ getShareToken: getShareAccessToken, name: `${safe}.pdf`, blob });
+      // Record the share ON the project (syncs → visible on every device).
+      const slot = chapterId || '__project__';
+      setProjects(prev => {
+        const next = prev.map(pr => pr.id === p.id
+          ? { ...pr, shares: { ...(pr.shares || {}), [slot]: { fileId, url } } }
+          : pr);
+        saveProjectsDirty(next);
+        return next;
       });
-      if (res.status === 409) {
-        // Server has a reported/blocked share for this slot — record it locally
-        const d   = await res.json();
-        const sid = d.id;
-        const st  = d.error === 'share_blocked' ? 'blocked' : 'reported';
-        if (sid) {
-          const key     = shareKey(p.id, chapterId);
-          const updated = { ...shareLinks, [key]: sid };
-          setShareLinks(updated);
-          try { localStorage.setItem(`fwd:shares:${user?.email || ''}`, JSON.stringify(updated)); } catch {}
-          const stUp = { ...shareStatuses, [sid]: st };
-          setShareStatuses(stUp);
-          try { localStorage.setItem(`fwd:share-statuses:${user?.email || ''}`, JSON.stringify(stUp)); } catch {}
-        }
-        setShareLoading(null);
-        return;
-      }
-      if (!res.ok) { setShareLoading(null); return; }
-      const { id } = await res.json();
-      const key     = shareKey(p.id, chapterId);
-      const updated = { ...shareLinks, [key]: id };
-      setShareLinks(updated);
-      try { localStorage.setItem(`fwd:shares:${user?.email || ''}`, JSON.stringify(updated)); } catch {}
-      // Clear any stale status for this share
-      const stUp = { ...shareStatuses, [id]: 'active' };
-      setShareStatuses(stUp);
-      try { localStorage.setItem(`fwd:share-statuses:${user?.email || ''}`, JSON.stringify(stUp)); } catch {}
-    } catch {}
+      setShareLinks(prev => ({ ...prev, [key]: url }));
+    } catch (e) {
+      console.warn('share failed:', e);
+    }
     setShareLoading(null);
   }
 
   async function handleUnshare(chapterId) {
-    const p   = projectRef.current;
-    const key = shareKey(p.id, chapterId);
-    const id  = shareLinks[key];
-    if (!id) return;
-    try {
-      await cloudFetch(`/api/share?id=${id}`, { method: 'DELETE' });
-    } catch {}
-    const updated = { ...shareLinks };
-    delete updated[key];
-    setShareLinks(updated);
-    try { localStorage.setItem(`fwd:shares:${user?.email || ''}`, JSON.stringify(updated)); } catch {}
+    const p    = projectRef.current;
+    const key  = shareKey(p.id, chapterId);
+    const slot = chapterId || '__project__';
+    const info = (p.shares || {})[slot];
+    if (info?.fileId) {
+      try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: info.fileId }); } catch {}
+    }
+    setProjects(prev => {
+      const next = prev.map(pr => {
+        if (pr.id !== p.id) return pr;
+        const shares = { ...(pr.shares || {}) };
+        delete shares[slot];
+        return { ...pr, shares };
+      });
+      saveProjectsDirty(next);
+      return next;
+    });
+    setShareLinks(prev => { const n = { ...prev }; delete n[key]; return n; });
   }
 
-  function shareUrl(id) {
-    return `${window.location.origin}/s/${id}`;
-  }
+  // shareLinks now stores the full Drive URL per slot, so this is identity (kept so the
+  // share modal's existing callers don't need to change).
+  function shareUrl(u) { return u; }
+
+  // Single source of truth = the synced project.shares; keep shareLinks in step with it.
+  useEffect(() => {
+    const map = {};
+    for (const pr of projects) {
+      for (const [slot, info] of Object.entries(pr.shares || {})) {
+        if (!info?.url) continue;
+        map[shareKey(pr.id, slot === '__project__' ? null : slot)] = info.url;
+      }
+    }
+    setShareLinks(map);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects]);
 
   // ── Share-progress card helpers ──────────────────────────────────────────────
   function cardFileName() {
@@ -3197,7 +3198,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           {/* Share links — underlined text, not buttons (lower weight than "+ New section") */}
           {!isReadOnly && (
             <div data-tour="share" style={{ padding: '6px 12px 4px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
-              <button style={{ ...btn(th, 'ghost'), fontSize: 11, fontStyle: 'italic' }} onClick={() => { if (!user?.paid) { setSignInPrompt(true); return; } setShareModal(true); loadShareStatuses(); }}>share</button>
+              <button style={{ ...btn(th, 'ghost'), fontSize: 11, fontStyle: 'italic' }} onClick={() => { if (!user) { onSignIn(); return; } setShareModal(true); }}>share</button>
               <button style={{ ...btn(th, 'ghost'), fontSize: 11, fontStyle: 'italic' }} onClick={openProgressCard}>share progress</button>
             </div>
           )}
