@@ -45,10 +45,7 @@ export default function ShareView({ fileId }) {
         {sections.map((sec, i) => (
           <section key={i} style={s.section}>
             {sec.title ? <h2 style={s.h2}>{sec.title}</h2> : null}
-            {String(sec.content || '').split(/\n{2,}/).map((para, j) => {
-              const t = para.replace(/\n/g, ' ').trim();
-              return t ? <p key={j} style={s.p}>{t}</p> : null;
-            })}
+            {sec.content ? <div style={s.content}>{sec.content}</div> : null}
           </section>
         ))}
         <footer style={s.footer}>
@@ -75,6 +72,9 @@ const s = {
   rule:    { height: 1, background: '#ddd6c9', margin: '0 0 28px' },
   section: { margin: '0 0 24px' },
   h2:      { fontSize: 20, fontWeight: 'normal', fontStyle: 'italic', margin: '24px 0 8px' },
+  // Preserve the writer's line breaks exactly as typed (matches the editor). pre-wrap keeps
+  // single and double newlines and still wraps long lines.
+  content: { fontSize: 17, lineHeight: 1.7, color: '#2b2620', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   p:       { fontSize: 17, lineHeight: 1.7, margin: '0 0 14px', color: '#2b2620' },
   footer:  { marginTop: 40, paddingTop: 16, borderTop: '1px solid #ddd6c9' },
   byline:  { fontSize: 13, fontStyle: 'italic', color: '#6b6459', margin: '0 0 4px' },

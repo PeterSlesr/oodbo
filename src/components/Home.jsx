@@ -6,6 +6,8 @@ import BodyScrollLock from '../lib/BodyScrollLock.jsx';
 import JSZip from 'jszip';
 import { exportDocx } from '../lib/docx.js';
 import { exportPdf }  from '../lib/pdf.js';
+import { publishShare, unpublishShare } from '../lib/share.js';
+import { getShareAccessToken } from '../lib/providerSession.js';
 import { PAYMENTS_LIVE } from '../lib/constants.js';
 import { openDB } from '../lib/sync/store.js';   // single IDB opener (v4) — see store.js
 import { getEngine, getSyncBadges, resolveConflict, reassignFork } from '../lib/sync/client.js';
@@ -292,9 +294,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   const [restoringId,      setRestoringId]      = useState(null);    // projectId being restored (shows "Restoring…")
   const [exportTarget,   setExportTarget]   = useState(null);
   const [shareTarget,    setShareTarget]    = useState(null);
-  const [shareLinks,     setShareLinks]     = useState(() => {
-    try { return JSON.parse(localStorage.getItem(`fwd:shares:${user?.email || ''}`) || '{}'); } catch { return {}; }
-  });
+  const [shareLinks,     setShareLinks]     = useState({});   // { [projectId]: driveFileId } — derived from project.shares; shareUrl(fileId) = /s/ link
   const [shareStatuses,  setShareStatuses]  = useState(() => {
     try { return JSON.parse(localStorage.getItem(`fwd:share-statuses:${user?.email || ''}`) || '{}'); } catch { return {}; }
   });
@@ -304,38 +304,20 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   const [sharesList,     setSharesList]     = useState(null);   // null = loading; [] = loaded/empty
   const [sharesBusy,     setSharesBusy]     = useState(null);   // share id currently being actioned
   const [sharesCopied,   setSharesCopied]   = useState(null);   // share id just copied
-  const [tosAccepted,    setTosAccepted]    = useState(() => !!user?.tosShareAccepted);
+  const [tosAccepted,    setTosAccepted]    = useState(true);   // Option B: content lives in the user's own Drive — no hosted moderation, no policy gate
   const [isMobile,       setIsMobile]       = useState(() => window.innerWidth < 768);
 
-  // #7: share state is per-account, not per-device. Seeded from localStorage above for an
-  // instant/offline view, then refreshed from the server so the "shared" badge + copy-link show
-  // on EVERY device — not just the one that created the share. GET /api/share lists the account's
-  // shares; localStorage stays as an offline cache. Refreshes on mount and after every sweep.
+  // shareLinks (projectId → Drive fileId) derived from the synced project.shares; shareUrl(fileId)
+  // yields the /s/ link. Single source of truth = project.shares (cross-device).
   useEffect(() => {
-    if (!user?.provider || !user?.paid) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await cloudFetch('/api/share');
-        if (!res.ok) return;
-        const { shares } = await res.json();
-        if (cancelled || !Array.isArray(shares)) return;
-        const links = {}, statuses = {};
-        for (const sh of shares) {
-          const key = sh.chapter_id ? `${sh.project_id}:${sh.chapter_id}` : sh.project_id;
-          links[key] = sh.id;
-          statuses[sh.id] = sh.active ? 'active' : (sh.inactive_reason || 'inactive');
-        }
-        setShareLinks(links);
-        setShareStatuses(statuses);
-        try {
-          localStorage.setItem(`fwd:shares:${user?.email || ''}`, JSON.stringify(links));
-          localStorage.setItem(`fwd:share-statuses:${user?.email || ''}`, JSON.stringify(statuses));
-        } catch {}
-      } catch {}
-    })();
-    return () => { cancelled = true; };
-  }, [user?.email, user?.provider, user?.paid, syncTick]);
+    const map = {};
+    for (const p of projects) {
+      const info = (p.shares || {})['__project__'];
+      if (info?.fileId) map[p.id] = info.fileId;
+    }
+    setShareLinks(map);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects]);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -462,22 +444,15 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
       .filter(([, sid]) => (shareStatuses[sid] ?? 'active') === 'active');
   }
 
-  // Deactivates all active share links for a project. Silently skips reported/blocked ones.
+  // Unpublish every share (project + sections) a project has — deletes the public files from
+  // the user's Drive so a deleted project leaves no live links behind.
   async function deactivateProjectShares(projectId) {
-    const active = activeSharesFor(projectId);
-    if (active.length === 0) return;
-    await Promise.all(active.map(async ([key, sid]) => {
-      try {
-        await cloudFetch(`/api/share?id=${encodeURIComponent(sid)}`, { method: 'DELETE' });
-      } catch {}
-      // Remove from local cache regardless of network outcome
-      setShareLinks(prev => {
-        const next = { ...prev };
-        delete next[key];
-        try { localStorage.setItem(`fwd:shares:${user?.email || ''}`, JSON.stringify(next)); } catch {}
-        return next;
-      });
-    }));
+    const p = projects.find(x => x.id === projectId);
+    const fileIds = Object.values(p?.shares || {}).map(sh => sh?.fileId).filter(Boolean);
+    for (const fileId of fileIds) {
+      try { await unpublishShare({ getShareToken: getShareAccessToken, fileId }); } catch {}
+    }
+    setShareLinks(prev => { const u = { ...prev }; delete u[projectId]; return u; });
   }
 
   // ── Delete project — moves to recycle bin ─────────────────────────────────
@@ -772,113 +747,109 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
     setTosAccepting(false);
   }
 
+  // Build the JSON snapshot our /s/<id> viewer renders (whole project, or one section).
+  function buildSnapshot(p, chapterId) {
+    const sec = chapterId ? (p.chapters || []).find(c => c.id === chapterId) : null;
+    const title = (sec ? sec.title : p.title) || 'Untitled';
+    const sections = sec
+      ? [{ title: sec.title || '', content: sec.content || '', level: sec.level || 1 }]
+      : (p.chapters || []).map(c => ({ title: c.title || '', content: c.content || '', level: c.level || 1 }));
+    return { v: 1, title, sections, author: user?.email || '', publishedAt: new Date().toISOString() };
+  }
+
+  // Persist a project whose .shares changed: write to IDB + mark dirty (syncs) + update state.
+  async function persistProjectShare(updated) {
+    try { await writeProjectToIDB(updated, user?.email); } catch {}
+    getEngine()?.markDirty(updated.id, updated);
+    getEngine()?.sweepDirty?.().catch(() => {});
+    setProjects(prev => prev.map(x => x.id === updated.id ? updated : x));
+  }
+
   async function handleShare(p) {
     setShareLoading(true);
     try {
-      const snapshot = { chapters: p.chapters.map(c => ({ id: c.id, title: c.title, content: c.content, level: c.level || 1 })) };
-      const res = await cloudFetch('/api/share', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ projectId: p.id, chapterId: null, title: p.title || 'Untitled', snapshot }),
-      });
-      if (res.status === 409) {
-        const d = await res.json();
-        if (d.id) {
-          const updated = { ...shareLinks, [p.id]: d.id };
-          setShareLinks(updated);
-          try { localStorage.setItem(`fwd:shares:${user?.email || ''}`, JSON.stringify(updated)); } catch {}
-          const stUp = { ...shareStatuses, [d.id]: d.error === 'share_blocked' ? 'blocked' : 'reported' };
-          setShareStatuses(stUp);
-          try { localStorage.setItem(`fwd:share-statuses:${user?.email || ''}`, JSON.stringify(stUp)); } catch {}
-        }
-        setShareLoading(false); return;
-      }
-      if (!res.ok) { setShareLoading(false); return; }
-      const { id } = await res.json();
-      const updated = { ...shareLinks, [p.id]: id };
-      setShareLinks(updated);
-      try { localStorage.setItem(`fwd:shares:${user?.email || ''}`, JSON.stringify(updated)); } catch {}
-      const stUp = { ...shareStatuses, [id]: 'active' };
-      setShareStatuses(stUp);
-      try { localStorage.setItem(`fwd:share-statuses:${user?.email || ''}`, JSON.stringify(stUp)); } catch {}
-    } catch {}
+      const snap = buildSnapshot(p, null);
+      const blob = new Blob([JSON.stringify(snap)], { type: 'application/json' });
+      const safe = ((p.title || 'oodbo').replace(/[^\w .-]+/g, ' ').trim() || 'oodbo');
+      const prev = (p.shares || {})['__project__'];
+      if (prev?.fileId) { try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: prev.fileId }); } catch {} }
+      const { fileId } = await publishShare({ getShareToken: getShareAccessToken, name: `${safe}.oodbo.json`, blob, mimeType: 'application/json' });
+      const url = `${window.location.origin}/s/${fileId}`;
+      await persistProjectShare({ ...p, shares: { ...(p.shares || {}), '__project__': { fileId, url, publishedAt: snap.publishedAt } } });
+      setShareLinks(prev2 => ({ ...prev2, [p.id]: fileId }));
+    } catch (e) { console.warn('share failed:', e); }
     setShareLoading(false);
   }
 
   async function handleUnshare(p) {
-    const id = shareLinks[p.id];
-    if (!id) return;
-    try { await cloudFetch(`/api/share?id=${id}`, { method: 'DELETE' }); } catch {}
-    const updated = { ...shareLinks };
-    delete updated[p.id];
-    setShareLinks(updated);
-    try { localStorage.setItem(`fwd:shares:${user?.email || ''}`, JSON.stringify(updated)); } catch {}
+    const info = (p.shares || {})['__project__'];
+    if (info?.fileId) { try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: info.fileId }); } catch {} }
+    const shares = { ...(p.shares || {}) };
+    delete shares['__project__'];
+    await persistProjectShare({ ...p, shares });
+    setShareLinks(prev => { const u = { ...prev }; delete u[p.id]; return u; });
   }
 
   // ── "Shared links" manager — every share (project + section) in one place ───
   // The project page and the editor each manage one share at a time; this modal
   // lists them all so a user can copy / refresh-snapshot / remove from one view.
-  async function openSharesPanel() {
+  function openSharesPanel() {
     setShowShares(true);
-    setSharesList(null);                                  // show loading
-    try {
-      const res = await cloudFetch('/api/share');
-      if (!res.ok) { setSharesList([]); return; }
-      const { shares } = await res.json();
-      // Active + flagged (reported/blocked); hide user_deleted soft-deletes.
-      const visible = (shares || []).filter(sh =>
-        sh.active || sh.inactive_reason === 'reported' || sh.inactive_reason === 'blocked');
-      setSharesList(visible);
-    } catch { setSharesList([]); }
+    // Derive the list straight from the synced project.shares — no server.
+    const list = [];
+    for (const p of projects) {
+      for (const [slot, info] of Object.entries(p.shares || {})) {
+        if (!info?.fileId) continue;
+        const chapterId = slot === '__project__' ? null : slot;
+        const title = chapterId
+          ? ((p.chapters || []).find(c => c.id === chapterId)?.title || p.title || 'Untitled')
+          : (p.title || 'Untitled');
+        list.push({ id: info.fileId, project_id: p.id, chapter_id: chapterId, title, active: true, updated_at: info.publishedAt || null });
+      }
+    }
+    setSharesList(list);
   }
 
-  // Rebuild a share's snapshot from LOCAL project data. Returns null when the
-  // project (or its section) isn't on this device — Copy/Remove still work, but
-  // a snapshot can't be refreshed from source we don't hold here.
+  // Rebuild the JSON snapshot from LOCAL project data (for "update snapshot"). Returns null
+  // when the project/section isn't on this device — Copy/Remove still work regardless.
   function rebuildSnapshot(projectId, chapterId) {
     const p = projects.find(x => x.id === projectId);
     if (!p) return null;
-    if (chapterId) {
-      const c = p.chapters.find(ch => ch.id === chapterId);
-      if (!c) return null;
-      return { title: c.title || p.title || 'Untitled', snapshot: { content: c.content || '', title: c.title || '' } };
-    }
-    return {
-      title: p.title || 'Untitled',
-      snapshot: { chapters: p.chapters.map(c => ({ id: c.id, title: c.title, content: c.content, level: c.level || 1 })) },
-    };
+    if (chapterId && !(p.chapters || []).find(ch => ch.id === chapterId)) return null;
+    return buildSnapshot(p, chapterId);
   }
 
   async function updateShareSnapshot(sh) {
-    const built = rebuildSnapshot(sh.project_id, sh.chapter_id);
-    if (!built) return;
+    const snap = rebuildSnapshot(sh.project_id, sh.chapter_id);
+    if (!snap) return;
     setSharesBusy(sh.id);
     try {
-      const res = await cloudFetch('/api/share', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ projectId: sh.project_id, chapterId: sh.chapter_id || null, title: built.title, snapshot: built.snapshot }),
-      });
-      if (res.ok) {
-        const now = new Date().toISOString();
-        setSharesList(list => (list || []).map(x => x.id === sh.id ? { ...x, updated_at: now } : x));
-      }
-    } catch {}
+      const blob = new Blob([JSON.stringify(snap)], { type: 'application/json' });
+      const safe = ((snap.title || 'oodbo').replace(/[^\w .-]+/g, ' ').trim() || 'oodbo');
+      const { fileId } = await publishShare({ getShareToken: getShareAccessToken, name: `${safe}.oodbo.json`, blob, mimeType: 'application/json' });
+      try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: sh.id }); } catch {}   // drop the old file
+      const url  = `${window.location.origin}/s/${fileId}`;
+      const slot = sh.chapter_id || '__project__';
+      const p    = projects.find(x => x.id === sh.project_id);
+      if (p) await persistProjectShare({ ...p, shares: { ...(p.shares || {}), [slot]: { fileId, url, publishedAt: snap.publishedAt } } });
+      setSharesList(list => (list || []).map(x => x.id === sh.id ? { ...x, id: fileId, updated_at: snap.publishedAt } : x));
+      if (!sh.chapter_id) setShareLinks(prev => ({ ...prev, [sh.project_id]: fileId }));
+    } catch (e) { console.warn('update snapshot failed:', e); }
     setSharesBusy(null);
   }
 
   async function removeShareLink(sh) {
     setSharesBusy(sh.id);
-    try { await cloudFetch(`/api/share?id=${sh.id}`, { method: 'DELETE' }); } catch {}
+    try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: sh.id }); } catch {}
+    const slot = sh.chapter_id || '__project__';
+    const p    = projects.find(x => x.id === sh.project_id);
+    if (p) {
+      const shares = { ...(p.shares || {}) };
+      delete shares[slot];
+      await persistProjectShare({ ...p, shares });
+    }
     setSharesList(list => (list || []).filter(x => x.id !== sh.id));
-    // Clear the badge maps too, so the project row reflects the removal.
-    const key = sh.chapter_id ? `${sh.project_id}:${sh.chapter_id}` : sh.project_id;
-    setShareLinks(prev => {
-      const u = { ...prev };
-      if (u[key] === sh.id) delete u[key];
-      try { localStorage.setItem(`fwd:shares:${user?.email || ''}`, JSON.stringify(u)); } catch {}
-      return u;
-    });
+    if (!sh.chapter_id) setShareLinks(prev => { const u = { ...prev }; delete u[sh.project_id]; return u; });
     setSharesBusy(null);
   }
 

@@ -1448,11 +1448,17 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
       const snapshot = { v: 1, title, sections, author: user.email || '', publishedAt: new Date().toISOString() };
       const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
       const safe = (title.replace(/[^\w .-]+/g, ' ').trim() || 'oodbo');
+      // Re-sharing ("update snapshot") publishes a fresh file — delete the previous one first
+      // so we don't leave orphaned public files piling up in the user's Drive.
+      const slot = chapterId || '__project__';
+      const prevShare = (p.shares || {})[slot];
+      if (prevShare?.fileId) {
+        try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: prevShare.fileId }); } catch {}
+      }
       // Publish the snapshot to the user's visible Drive as "anyone with the link" (Option B).
       const { fileId } = await publishShare({ getShareToken: getShareAccessToken, name: `${safe}.oodbo.json`, blob, mimeType: 'application/json' });
       const url = `${window.location.origin}/s/${fileId}`;   // our branded viewer link
       // Record the share ON the project (syncs → visible on every device).
-      const slot = chapterId || '__project__';
       setProjects(prev => {
         const next = prev.map(pr => pr.id === p.id
           ? { ...pr, shares: { ...(pr.shares || {}), [slot]: { fileId, url } } }

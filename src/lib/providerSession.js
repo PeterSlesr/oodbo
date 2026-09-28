@@ -60,12 +60,13 @@ const isFresh = (t) => !!t && Date.now() < t.expiresAt - EXPIRY_SKEW_MS;
 
 // One GIS token request for a given scope. `interactive` true = allow the account/consent
 // popup (needs a user gesture); false = attempt a silent refresh and reject if UI is needed.
-function requestToken({ interactive, scope }) {
+function requestToken({ interactive, scope, hint }) {
   return new Promise((resolve, reject) => {
     loadGis().then(() => {
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope,
+        ...(hint ? { hint } : {}),   // target the already-signed-in account (skip the chooser)
         callback: (resp) => {
           if (resp.error) { reject(new Error(resp.error)); return; }
           resolve({ accessToken: resp.access_token, expiresAt: Date.now() + (Number(resp.expires_in) || 3600) * 1000 });
@@ -99,7 +100,7 @@ export async function signIn() {
 export async function getValidProviderAccessToken() {
   if (isFresh(_syncTok)) return _syncTok.accessToken;
   if (_inflight) return _inflight;
-  _inflight = requestToken({ interactive: false, scope: SYNC_SCOPE })
+  _inflight = requestToken({ interactive: false, scope: SYNC_SCOPE, hint: _email || undefined })
     .then(async t => {
       // Guard: a refresh (silent or re-prompted) can come back for a DIFFERENT Google
       // account than the one we're signed in as. Never adopt it silently — that would run
@@ -121,7 +122,7 @@ export async function getValidProviderAccessToken() {
 // cached and reused after. Separate from the sync token so non-sharers never grant it.
 export async function getShareAccessToken() {
   if (isFresh(_shareTok)) return _shareTok.accessToken;
-  _shareTok = await requestToken({ interactive: true, scope: SHARE_SCOPE });
+  _shareTok = await requestToken({ interactive: true, scope: SHARE_SCOPE, hint: _email || undefined });
   return _shareTok.accessToken;
 }
 
