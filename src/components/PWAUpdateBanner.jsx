@@ -10,7 +10,7 @@ export default function PWAUpdateBanner() {
 
   return (
     <div style={s.banner}>
-      <span style={s.msg}>A new version of oodbo is available</span>
+      <span style={s.msg}>A new version of Forward Only is available</span>
       <button style={s.btn} onClick={() => updateServiceWorker(true)}>reload</button>
       <button style={s.dismiss} onClick={() => setNeedRefresh(false)}>later</button>
     </div>

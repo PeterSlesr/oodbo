@@ -768,25 +768,31 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   async function handleShare(p) {
     setShareLoading(true);
     try {
-      const snap = buildSnapshot(p, null);
+      // Resolve the LIVE project from state (the passed `p`/shareTarget can be a stale snapshot).
+      const cur  = projects.find(x => x.id === p.id) || p;
+      const snap = buildSnapshot(cur, null);
       const blob = new Blob([JSON.stringify(snap)], { type: 'application/json' });
-      const safe = ((p.title || 'oodbo').replace(/[^\w .-]+/g, ' ').trim() || 'oodbo');
-      const prev = (p.shares || {})['__project__'];
-      if (prev?.fileId) { try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: prev.fileId }); } catch {} }
+      const safe = ((cur.title || 'oodbo').replace(/[^\w .-]+/g, ' ').trim() || 'oodbo');
+      const prev = (cur.shares || {})['__project__'];
+      if (prev?.fileId) { try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: prev.fileId }); } catch (e) { console.warn('unpublish old failed:', e); } }
       const { fileId } = await publishShare({ getShareToken: getShareAccessToken, name: `${safe}.oodbo.json`, blob, mimeType: 'application/json' });
       const url = `${window.location.origin}/s/${fileId}`;
-      await persistProjectShare({ ...p, shares: { ...(p.shares || {}), '__project__': { fileId, url, publishedAt: snap.publishedAt } } });
+      await persistProjectShare({ ...cur, shares: { ...(cur.shares || {}), '__project__': { fileId, url, publishedAt: snap.publishedAt } } });
       setShareLinks(prev2 => ({ ...prev2, [p.id]: fileId }));
     } catch (e) { console.warn('share failed:', e); }
     setShareLoading(false);
   }
 
   async function handleUnshare(p) {
-    const info = (p.shares || {})['__project__'];
-    if (info?.fileId) { try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: info.fileId }); } catch {} }
-    const shares = { ...(p.shares || {}) };
+    const cur  = projects.find(x => x.id === p.id) || p;   // live copy (has the fileId; avoids clobber)
+    const info = (cur.shares || {})['__project__'];
+    if (info?.fileId) {
+      try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: info.fileId }); }
+      catch (e) { console.warn('unpublish failed:', e); }
+    }
+    const shares = { ...(cur.shares || {}) };
     delete shares['__project__'];
-    await persistProjectShare({ ...p, shares });
+    await persistProjectShare({ ...cur, shares });
     setShareLinks(prev => { const u = { ...prev }; delete u[p.id]; return u; });
   }
 
@@ -1125,7 +1131,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
 
       {/* Header */}
       <header style={s.header}>
-        <span style={s.logo}>oodbo</span>
+        <span style={s.logo}>Forward Only</span>
         <span style={s.flex1} />
         <span style={s.userEmail}>{user?.name || user?.email?.split('@')[0]}</span>
         <button style={s.ghostBtn} onClick={onSignOut}>sign out</button>

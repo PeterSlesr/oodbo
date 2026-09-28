@@ -71,7 +71,7 @@ export default function ConflictDialog({ original, conflicted, onResolve, onLate
     <div style={s.wrap}>
       <BodyScrollLock />
       <div style={s.box}>
-        <h1 style={s.brand}>oodbo</h1>
+        <h1 style={s.brand}>Forward Only</h1>
         <p style={s.sub}>
           This project was edited in two places before they could sync — pick which version to keep.
           Both are already saved, so nothing is lost either way.

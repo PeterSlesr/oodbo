@@ -26,7 +26,7 @@ const LS_WEB = 'https://oodbo.lemonsqueezy.com/checkout/buy/3229a629-9112-4867-a
 // Guest onboarding tour (desktop only) — steps anchor to [data-tour] elements.
 // Copy is placeholder; final wording is Paul's.
 const TOUR_STEPS = [
-  { selector: '[data-tour="forward"]',        side: 'bottom', title: 'Forward mode',      body: 'The heart of oodbo: write without editing or deleting — you can only move forward. Click Forward to try it.' },
+  { selector: '[data-tour="forward"]',        side: 'bottom', title: 'Forward mode',      body: 'The heart of Forward Only: write without editing or deleting — you can only move forward. Click Forward to try it.' },
   { selector: '[data-tour="notes"]',          side: 'bottom', dodgeLeft: 220, title: 'Notes', body: 'Select any text to leave a margin note — an idea, a fix for later — without breaking your flow.' },
   { selector: '[data-tour="rename"]',         side: 'bottom', ringMinWidth: 170, title: 'Name your project', body: 'Click the title any time to rename your project.' },
   { selector: '[data-tour="section"]',        side: 'right',  title: 'Sections',          body: 'Your writing is organized into sections. Click one to jump to it, drag to reorder, or click the copy icon to copy a section’s text.' },
@@ -514,7 +514,7 @@ function renderProgressCard({ title, words, sections, colors, entryLabel, dateSt
   // Footer — "written by a human at oodbo.io" (oodbo.io emphasised)
   const footY = 930;
   const phrase = 'written by a human at ';
-  const brand  = 'oodbo.io';
+  const brand  = 'write.mercoogs.com';
   ctx.textAlign = 'left';
   ctx.font = 'italic 34px Georgia, serif';
   const wPhrase = ctx.measureText(phrase).width;
@@ -1477,9 +1477,12 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
     const p    = projectRef.current;
     const key  = shareKey(p.id, chapterId);
     const slot = chapterId || '__project__';
-    const info = (p.shares || {})[slot];
+    // Read the fileId from the LIVE project (projectRef can lag behind the last setProjects),
+    // so we actually delete the Drive file instead of skipping it.
+    const info = (projects.find(x => x.id === p.id)?.shares || {})[slot];
     if (info?.fileId) {
-      try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: info.fileId }); } catch {}
+      try { await unpublishShare({ getShareToken: getShareAccessToken, fileId: info.fileId }); }
+      catch (e) { console.warn('unpublish failed:', e); }
     }
     setProjects(prev => {
       const next = prev.map(pr => {
@@ -1527,7 +1530,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
       : (sections === 1 ? 'section' : 'sections');
     const dateStr  = logDate();
     // Plain-text companion line — carries the alt-text meaning into threads/screenreaders.
-    const textLine = `"${title}"\n${plWords(words)}, ${sections} ${secWord}, ${dateStr}. A forward-only draft, written by a human at oodbo.io`;
+    const textLine = `"${title}"\n${plWords(words)}, ${sections} ${secWord}, ${dateStr}. A forward-only draft, written by a human at write.mercoogs.com`;
     const canvas = renderProgressCard({
       title, words, sections, dateStr,
       entryLabel: usesEntryLabel ? 'entry' : 'section',
@@ -2886,8 +2889,8 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
             >☰</button>
             <span style={s.spacer}/>
             {user && onGoHome
-              ? <button style={{ ...s.brand, color: th.chromeText, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={handleGoHome}>oodbo.io</button>
-              : <span   style={{ ...s.brand, color: th.chromeText }}>oodbo.io</span>
+              ? <button style={{ ...s.brand, color: th.chromeText, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={handleGoHome}>Forward Only</button>
+              : <span   style={{ ...s.brand, color: th.chromeText }}>Forward Only</span>
             }
             <span style={s.spacer}/>
             {isReadOnly ? (
@@ -2916,8 +2919,8 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
         ) : (
           <>
             {user && onGoHome
-              ? <button style={{ ...s.brand, color: th.chromeText, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={handleGoHome}>oodbo.io</button>
-              : <span   style={{ ...s.brand, color: th.chromeText }}>oodbo.io</span>
+              ? <button style={{ ...s.brand, color: th.chromeText, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={handleGoHome}>Forward Only</button>
+              : <span   style={{ ...s.brand, color: th.chromeText }}>Forward Only</span>
             }
             {!isReadOnly && (titleEditing ? (
               <input
@@ -3912,7 +3915,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
               <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, lineHeight: 1.5, color: th.chromeText, margin: 0, border: `1px solid ${th.chromeBorder}`, background: th.shell, padding: '10px 12px' }}>
                 “{progressMeta?.title}”<br />
                 {plWords(progressMeta?.words || 0)}, {progressMeta?.sections} {progressMeta?.secWord}, {progressMeta?.dateStr}. A forward-only draft, written by a human at{' '}
-                <a href="https://oodbo.io" target="_blank" rel="noreferrer" style={{ color: th.primaryBg }}>oodbo.io</a>
+                <a href="https://write.mercoogs.com" target="_blank" rel="noreferrer" style={{ color: th.primaryBg }}>write.mercoogs.com</a>
               </p>
             </div>
 
