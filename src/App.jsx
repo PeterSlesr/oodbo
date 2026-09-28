@@ -5,6 +5,7 @@ import Editor from './components/Editor.jsx';
 import Auth from './components/Auth.jsx';
 import DesktopOAuthComplete from './components/DesktopOAuthComplete.jsx';
 import Home from './components/Home.jsx';
+import ShareView from './components/ShareView.jsx';
 import { initSync, getEngine, clearLocalSession, runMigration } from './lib/sync/client.js';
 import NotEntitled from './components/NotEntitled.jsx';
 import { PAYMENTS_LIVE } from './lib/constants.js';
@@ -45,6 +46,11 @@ export default function App() {
   if (window.location.pathname === '/desktop/oauth-complete') {
     return <DesktopOAuthComplete />;
   }
+  // Public read-only share viewer: /s/<driveFileId> — renders a public snapshot from the
+  // author's Drive (no sign-in needed). Handled before any auth logic.
+  if (window.location.pathname.startsWith('/s/')) {
+    return <ShareView fileId={decodeURIComponent(window.location.pathname.slice(3))} />;
+  }
   const [user,            setUser]            = useState(null);   // null=checking, false=guest, object=signed-in
   const [showAuth,        setShowAuth]        = useState(() => new URLSearchParams(window.location.search).get('signup') === '1');
   const [view,            setView]            = useState('editor'); // 'home' | 'editor'
@@ -84,6 +90,15 @@ export default function App() {
   }, [user?.provider, user?.paid]);
 
 
+  // DEV-ONLY: pop the reconnect banner on demand — run `__forceReconnect()` in the console —
+  // so the reconnect flow can be tested without waiting ~1h for the token to expire. Stripped
+  // from production builds (import.meta.env.DEV is false there).
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    window.__forceReconnect = () => setSyncReconnect(true);
+    return () => { try { delete window.__forceReconnect; } catch {} };
+  }, []);
+
   async function handleProviderSignIn() {
     let u;
     try {
@@ -96,6 +111,7 @@ export default function App() {
     setUser(me);
     try { localStorage.setItem('fwd:user', JSON.stringify(me)); } catch {}
     setShowAuth(false);
+    setSyncReconnect(false);   // we just (re)authed — clear any "storage disconnected" banner
     setView('home');
     setInitialSyncing(true);
     await initSync({
@@ -211,6 +227,7 @@ export default function App() {
             onSync={handleSync}
             syncTick={syncTick}
             syncReconnect={syncReconnect}
+            onReconnect={handleProviderSignIn}
           />
           {homeFlash && (
             <div style={sFlash.banner}>{homeFlash}</div>
@@ -222,7 +239,7 @@ export default function App() {
       <Editor
         key={user.email}
         user={user}
-        onSignIn={() => setShowAuth(true)}
+        onSignIn={handleProviderSignIn}
         onSignOut={handleSignOut}
         onGoHome={handleGoHome}
         openProjectId={openProjectId}
@@ -230,6 +247,7 @@ export default function App() {
         jumpTarget={jumpTarget}
         searchTerm={searchTerm}
         syncReconnect={syncReconnect}
+        onReconnect={handleProviderSignIn}
       />
     );
   }

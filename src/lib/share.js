@@ -12,6 +12,24 @@
 const GDRIVE = 'https://www.googleapis.com/drive/v3';
 const GUP    = 'https://www.googleapis.com/upload/drive/v3';
 
+// Public browser API key (restricted by referrer + to the Drive API). Safe to ship; it only
+// lets the /s/<id> viewer read files that are already "anyone with the link".
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyAF75R_JR7siWtcL7SIO5BLDIXrZH4zEwI';
+
+// Anonymous read of a public share snapshot — the /s/<id> viewer's data source. No sign-in:
+// only the API key, which works because the file is shared "anyone with the link" (proven spike).
+export async function fetchPublicSnapshot(fileId) {
+  const res = await fetch(`${GDRIVE}/files/${encodeURIComponent(fileId)}?alt=media&key=${API_KEY}`);
+  if (!res.ok) throw new Error(`share fetch ${res.status}`);
+  return res.json();
+}
+
+// The Drive location a shared file physically lives at — shown on the viewer for transparency
+// ("Hosted at …"), so it's clear the content sits in the writer's own Drive, not on our site.
+export function driveViewUrl(fileId) {
+  return `https://drive.google.com/file/d/${fileId}/view`;
+}
+
 async function must(res, what) {
   if (!res.ok) throw new Error(`${what} failed: ${res.status} ${await res.text().catch(() => '')}`);
   return res;

@@ -252,7 +252,7 @@ const SORT_OPTIONS = [
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────────
-export default function Home({ user, onOpenProject, onNewProject, onSignOut, onSync, syncTick = 0, syncReconnect = false }) {
+export default function Home({ user, onOpenProject, onNewProject, onSignOut, onSync, syncTick = 0, syncReconnect = false, onReconnect = null }) {
   const [projects,       setProjects]       = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [query,          setQuery]          = useState('');   // what's typed in the search box
@@ -1149,7 +1149,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
           Only for users who actually sync — with no cloud connected there's nothing to be
           offline FROM, and promising it'll sync later would be a lie. */}
       {syncReconnect && user?.provider && user?.paid
-        ? <ReconnectBanner provider={user.provider} />
+        ? <ReconnectBanner provider={user.provider} onReconnect={onReconnect} />
         : !online && user?.provider && user?.paid && <OfflineBanner />}
 
       {/* Header */}

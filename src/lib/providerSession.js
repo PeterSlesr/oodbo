@@ -100,7 +100,18 @@ export async function getValidProviderAccessToken() {
   if (isFresh(_syncTok)) return _syncTok.accessToken;
   if (_inflight) return _inflight;
   _inflight = requestToken({ interactive: false, scope: SYNC_SCOPE })
-    .then(t => { _syncTok = t; return t.accessToken; })
+    .then(async t => {
+      // Guard: a refresh (silent or re-prompted) can come back for a DIFFERENT Google
+      // account than the one we're signed in as. Never adopt it silently — that would run
+      // account A's local data against account B's token. Halt sync instead; the reconnect
+      // flow re-signs in explicitly (and swaps accounts cleanly via the owner guard).
+      if (_email) {
+        const who = await fetchEmail(t.accessToken).catch(() => null);
+        if (who && who !== _email) throw new Error('account_changed');
+      }
+      _syncTok = t;
+      return t.accessToken;
+    })
     .finally(() => { _inflight = null; });
   return _inflight;
 }

@@ -819,7 +819,7 @@ const lsUrl = () => LS_WEB;   // direct product checkout, not the store root
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, welcomeProject = null, openProjectId = null, newProjectType = null, jumpTarget = null, searchTerm = '', syncReconnect = false, guest = false }) {
+export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, welcomeProject = null, openProjectId = null, newProjectType = null, jumpTarget = null, searchTerm = '', syncReconnect = false, onReconnect = null, guest = false }) {
   // Stamp saves with the current user's email so different accounts on the same
   // device never see each other's projects. Set before any state initialisation.
   _ownerEmail = user?.email || null;
@@ -1439,14 +1439,18 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
     const key = shareKey(p.id, chapterId);
     setShareLoading(key);
     try {
-      // Build the shareable content (whole project, or one section) and render it to a PDF.
-      const sec   = chapterId ? p.chapters.find(c => c.id === chapterId) : null;
-      const title = (sec ? sec.title : p.title) || 'Untitled';
-      const data  = sec ? { title, chapters: [{ content: sec.content || '', level: 1 }] } : p;
-      const blob  = exportPdf(data);
-      const safe  = (title.replace(/[^\w .-]+/g, ' ').trim() || 'oodbo');
-      // Publish to the user's visible Drive as an "anyone with the link" file (Option A).
-      const { fileId, url } = await publishShare({ getShareToken: getShareAccessToken, name: `${safe}.pdf`, blob });
+      // Build a JSON snapshot (whole project, or one section) that OUR /s/<id> viewer renders.
+      const sec      = chapterId ? p.chapters.find(c => c.id === chapterId) : null;
+      const title    = (sec ? sec.title : p.title) || 'Untitled';
+      const sections = sec
+        ? [{ title: sec.title || '', content: sec.content || '', level: sec.level || 1 }]
+        : (p.chapters || []).map(c => ({ title: c.title || '', content: c.content || '', level: c.level || 1 }));
+      const snapshot = { v: 1, title, sections, author: user.email || '', publishedAt: new Date().toISOString() };
+      const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
+      const safe = (title.replace(/[^\w .-]+/g, ' ').trim() || 'oodbo');
+      // Publish the snapshot to the user's visible Drive as "anyone with the link" (Option B).
+      const { fileId } = await publishShare({ getShareToken: getShareAccessToken, name: `${safe}.oodbo.json`, blob, mimeType: 'application/json' });
+      const url = `${window.location.origin}/s/${fileId}`;   // our branded viewer link
       // Record the share ON the project (syncs → visible on every device).
       const slot = chapterId || '__project__';
       setProjects(prev => {
@@ -2790,7 +2794,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
       {/* First child of the flex column, so it pushes the page down instead of covering it.
           Gated exactly like the sync indicator below: no cloud, nothing to be offline from. */}
       {syncReconnect && !isReadOnly && user?.provider && user?.paid
-        ? <ReconnectBanner provider={user.provider} />
+        ? <ReconnectBanner provider={user.provider} onReconnect={onReconnect} />
         : !online && !isReadOnly && user?.provider && user?.paid && <OfflineBanner />}
 
       {/* Trial banner */}
