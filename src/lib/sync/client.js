@@ -10,7 +10,7 @@
 // misbehaving engine can be stopped in production without a redeploy.
 
 import { createIdbAdapter, closeDB, newSyncRecord, commitClean, isStuckDirty } from './store.js';
-import { createCloud } from './cloud.js';
+import { createWebCloud } from './webCloud.js';
 import { wrapCloudWithEncryption } from '../contentCrypto.js';
 import { createEngine } from './engine.js';
 import { createForkHandler } from './fork.js';
@@ -41,7 +41,7 @@ function webDeviceLabel() {
 // `hooks` are the app's UI bridges: onBoot(projectId,msg), onReauth(), onBadge(evt).
 export function initSync({ user, getToken, hooks = {} }) {
   if (killed())                        return null;
-  if (!user?.provider || !user?.paid)  return null;   // guest / unpaid → local-only
+  if (!user?.provider)  return null;   // guest → local-only
 
   _provider = user.provider;
   _owner    = user.email;
@@ -49,7 +49,7 @@ export function initSync({ user, getToken, hooks = {} }) {
   // At-rest content encryption (contentCrypto.js / ENCRYPTION-DESIGN.md): wrap the cloud once at this
   // single seam. Encrypts xml into save/trash, decrypts out of load; engine/fork/canonical/migration see
   // plaintext. Legacy plaintext files pass through and convert to ciphertext on next save. `_owner` = key.
-  const rawCloud = createCloud({ getToken });
+  const rawCloud = createWebCloud({ getToken });
   _cloud = wrapCloudWithEncryption(rawCloud, _owner);
 
   // The fork pair needs no bookkeeping here. It's recorded on the fork itself as `conflictOf`

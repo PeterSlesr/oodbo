@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>oodbo — browser-direct spike</title>
+  <style>
+    body { font: 14px/1.6 -apple-system, system-ui, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 20px; background: #faf9f5; color: #1f1f1f; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p.sub { color: #6b6459; margin: 0 0 20px; }
+    button { font: inherit; padding: 8px 16px; margin-right: 8px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer; }
+    button:hover { background: #f0ede6; }
+    #summary { margin: 18px 0; font-weight: 700; }
+    .ok { color: #1a7f37; } .bad { color: #b0396a; }
+    pre { background: #1f1f1f; color: #e8e4d8; padding: 16px; border-radius: 8px; white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Menlo, monospace; min-height: 60px; }
+  </style>
+</head>
+<body>
+  <h1>oodbo — browser-direct spike (GIS)</h1>
+  <p class="sub">Proves the "no server" idea using Google Identity Services: the browser gets a Drive token directly (no secret, no backend), then reads/writes Drive. Use a <strong>dummy Google account</strong>.</p>
+
+  <button id="signin">Sign in with Google</button>
+  <button id="reset">Clear log</button>
+
+  <div id="summary"></div>
+  <pre id="log"></pre>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    // Public client — GIS needs NO secret. Only the JS origin must be registered (it is).
+    const CLIENT_ID = '489322279186-9jg8oj1e3o74d3v47gsvtlr326if4e51.apps.googleusercontent.com';
+    const SCOPE = 'openid email profile https://www.googleapis.com/auth/drive.appdata';
+
+    const logEl = document.getElementById('log');
+    const sumEl = document.getElementById('summary');
+    const log = (...a) => { logEl.textContent += a.join(' ') + '\n'; };
+    const summary = (msg, good) => { sumEl.textContent = msg; sumEl.className = good ? 'ok' : 'bad'; };
+
+    // ── Step 1: get a Drive access token straight in the browser (GIS) ──
+    let tokenClient = null;
+    function ensureClient() {
+      if (tokenClient) return tokenClient;
+      if (!(window.google && google.accounts && google.accounts.oauth2)) {
+        log('GIS library not loaded yet — wait a second and click again.');
+        return null;
+      }
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPE,
+        callback: (resp) => {
+          if (resp.error) {
+            log('token error: ' + resp.error + ' ' + (resp.error_description || ''));
+            summary('✗ ' + resp.error, false);
+            return;
+          }
+          log('✓ got an access token via GIS — no secret, no server.');
+          log('  expires_in: ' + resp.expires_in + 's   scope: ' + resp.scope);
+          driveTest(resp.access_token);
+        },
+      });
+      return tokenClient;
+    }
+
+    // ── Step 2: real Drive read/write in the appDataFolder ────────
+    async function driveTest(accessToken) {
+      const auth = { Authorization: 'Bearer ' + accessToken };
+      const NAME = '__spike_test__.oodbo';
+      const content = 'hello from the oodbo spike @ ' + new Date().toISOString();
+      try {
+        log('\nDrive: uploading a test file to the hidden appDataFolder ...');
+        const boundary = 'oodbospike';
+        const body =
+          '--' + boundary + '\r\nContent-Type: application/json\r\n\r\n' +
+          JSON.stringify({ name: NAME, parents: ['appDataFolder'] }) +
+          '\r\n--' + boundary + '\r\nContent-Type: text/plain\r\n\r\n' + content +
+          '\r\n--' + boundary + '--';
+        const up = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', {
+          method: 'POST', headers: { ...auth, 'Content-Type': 'multipart/related; boundary=' + boundary }, body,
+        });
+        log('  upload status: ' + up.status);
+        if (!up.ok) { log('  upload FAILED: ' + await up.text()); summary('✗ Drive write failed', false); return; }
+        const file = await up.json();
+        log('  ✓ created file id: ' + file.id);
+
+        log('Drive: listing the appDataFolder ...');
+        const list = await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)", { headers: auth });
+        log('  list status: ' + list.status + '  files: ' + JSON.stringify((await list.json()).files));
+
+        log('Drive: reading the file content back ...');
+        const rd = await fetch('https://www.googleapis.com/drive/v3/files/' + file.id + '?alt=media', { headers: auth });
+        log('  read status: ' + rd.status + '  content: ' + await rd.text());
+
+        log('Drive: deleting the test file (cleanup) ...');
+        const del = await fetch('https://www.googleapis.com/drive/v3/files/' + file.id, { method: 'DELETE', headers: auth });
+        log('  delete status: ' + del.status);
+
+        log('\n>>> SUCCESS: the browser talked straight to Google — token AND Drive read/write — with no server.');
+        summary('✓ SUCCESS — browser-direct works for Google Drive. The approach flies.', true);
+      } catch (e) {
+        log('  Drive call THREW: ' + e);
+        summary('✗ A Drive call was blocked (CORS/network) — see log', false);
+      }
+    }
+
+    // ── Wire up ───────────────────────────────────────────────────
+    document.getElementById('signin').onclick = () => {
+      const c = ensureClient();
+      if (c) { log('Opening Google sign-in popup — pick a dummy account and approve Drive access ...'); c.requestAccessToken(); }
+    };
+    document.getElementById('reset').onclick = () => { logEl.textContent = ''; sumEl.textContent = ''; };
+    log('Ready. Click "Sign in with Google" and use a dummy account.');
+  </script>
+</body>
+</html>

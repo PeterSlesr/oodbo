@@ -11,6 +11,7 @@ import Home from './components/Home.jsx';
 import { initSync, getEngine, teardownSync, runMigration } from './lib/sync/client.js';
 import NotEntitled from './components/NotEntitled.jsx';
 import { PAYMENTS_LIVE } from './lib/constants.js';
+import { signIn as providerSignIn, getValidProviderAccessToken, signOut as providerSignOut } from './lib/providerSession.js';
 
 // True inside the Tauri desktop shell (same detection the desktop build uses).
 // The web entitlement gate below must never fire on desktop, which has a free tier.
@@ -274,32 +275,36 @@ export default function App() {
       setUser(false);
     }
   }
-
-  async function handleSignOut() {
-    // Revoke our session record — try accessTokenRef first, fall back to Supabase session
-    const sessionId = localStorage.getItem('fwd:session-id');
-    if (sessionId) {
-      let token = accessTokenRef.current;
-      if (!token) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          token = session?.access_token;
-        } catch {}
-      }
-      if (token) {
-        fetch(`/api/auth/sessions?id=${sessionId}`, {
-          method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => {});
-      }
+  async function handleProviderSignIn() {
+    let u;
+    try {
+      u = await providerSignIn();                 // { provider: 'google', email }
+    } catch (e) {
+      console.warn('sign-in cancelled/failed:', e);
+      return;
     }
-    try { await signOut(); } catch (err) { console.warn('handleSignOut error:', err); }
+    const me = { ...u, paid: true };              // free for everyone; paid kept truthy for old checks
+    setUser(me);
+    try { localStorage.setItem('fwd:user', JSON.stringify(me)); } catch {}
+    setShowAuth(false);
+    setView('home');
+    setInitialSyncing(true);
+    initSync({
+      user: me,
+      getToken: getValidProviderAccessToken,
+      hooks: {
+        onBoot:   (projectId, msg) => { setView('home'); if (msg) { setHomeFlash(msg); setTimeout(() => setHomeFlash(''), 5000); } },
+        onReauth: () => setSyncReconnect(true),
+        onBadge:  () => setSyncTick(t => t + 1),
+      },
+    });
+    await runMigration();
+    await getEngine()?.sweepAll();
+    setInitialSyncing(false);
+  }
+  async function handleSignOut() {
+    try { await providerSignOut(); } catch (err) { console.warn('sign-out error:', err); }
     localStorage.removeItem('fwd:user');
-    localStorage.removeItem('fwd:session-id');
-    // fwd:trust is intentionally kept — device preference persists across sign-ins
-    sessionStorage.removeItem('fwd:session');
-    accessTokenRef.current    = null;
-    trustShownRef.current     = false;
-    initialDoneRef.current    = false;
     teardownSync();   // drop the engine + close the IDB connection
     setUser(false);
     setView('editor');
@@ -445,7 +450,7 @@ export default function App() {
     <Editor
       guest
       user={null}
-      onSignIn={() => setShowAuth(true)}
+      onSignIn={handleProviderSignIn}
       onSignOut={() => {}}
       onGoHome={null}
     />
