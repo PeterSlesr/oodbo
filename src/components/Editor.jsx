@@ -972,9 +972,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   const [copiedId,    setCopiedId]    = useState(null);
   const [shareModal,   setShareModal]   = useState(false);  // share dialog open
   const [shareLinks,    setShareLinks]    = useState({});  // { [shareKey]: driveUrl } — derived from project.shares
-  const [shareStatuses, setShareStatuses] = useState(() => {  // { [shareId]: 'reported'|'blocked'|'active' }
-    try { return JSON.parse(localStorage.getItem(`fwd:share-statuses:${user?.email || ''}`) || '{}'); } catch { return {}; }
-  });
   const [shareLoading,  setShareLoading]  = useState(null);   // share key currently creating/updating
   const [shareCopied,   setShareCopied]   = useState(null);   // share id just copied
   const [progressModal, setProgressModal] = useState(false);  // "share progress" card dialog
@@ -1413,16 +1410,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
     return () => clearInterval(id);
   }, []);
 
-  // ── Cloud sync helpers ────────────────────────────────────────────────────────
-
-  // Share subsystem is deferred (no server). These are stubbed so the app builds without
-  // Supabase/api; share calls reach no backend and fail gracefully until the share rework.
-  async function getCloudSession() { return null; }
-
-  async function cloudFetch(path, options = {}) {
-    return fetch(path, { ...options, headers: { ...options.headers } });
-  }
-
   // If the user arrived via "Try it free →", open Forward mode automatically
   useEffect(() => {
     if (!user || isReadOnly) return;
@@ -1623,38 +1610,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
     } catch { /* clipboard unavailable */ }
   }
 
-  // Fetch the status of all known share links for the current user.
-  // Called when the share modal opens so the UI reflects server-side state.
-  async function loadShareStatuses() {
-    try {
-      const res = await cloudFetch('/api/share');
-      if (!res.ok) return;
-      const { shares } = await res.json();
-      const statusMap = {};
-      // Build a map of shareId → status string
-      for (const s of (shares ?? [])) {
-        statusMap[s.id] = s.active ? 'active'
-          : (s.inactive_reason === 'reported' ? 'reported'
-          : s.inactive_reason === 'blocked'   ? 'blocked'
-          : 'removed');
-      }
-      // Also sync shareLinks — remove any IDs that the server has no record of
-      // or that were user_deleted (status 'removed')
-      setShareLinks(prev => {
-        const next = { ...prev };
-        let changed = false;
-        for (const [key, sid] of Object.entries(next)) {
-          if (statusMap[sid] === 'removed' || statusMap[sid] === undefined) {
-            // Only prune if server explicitly says it's user_deleted or missing
-            // Keep reported/blocked entries so we can show the grey state
-          }
-        }
-        return changed ? next : prev;
-      });
-      setShareStatuses(statusMap);
-      try { localStorage.setItem(`fwd:share-statuses:${user?.email || ''}`, JSON.stringify(statusMap)); } catch {}
-    } catch {}
-  }
 
   // Periodic pull every 5 min — boots to home if another device has a newer version
   useEffect(() => {
@@ -3717,7 +3672,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
         // identifies which slot this is (null = full project) so the loading/copied
         // animations fire only on the row actually being actioned.
         const shareSlot = (slotChapterId, shareId, onShare, onRemove) => {
-          const status    = shareId ? (shareStatuses[shareId] ?? 'active') : null;
           const isLoading = shareLoading === shareKey(p.id, slotChapterId);
           const isCopied  = shareCopied === shareId;
 
@@ -3727,32 +3681,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
               <button style={{ fontFamily: 'Georgia, serif', fontSize: 11, padding: '5px 12px', background: th.primaryBg, color: th.primaryText, border: 'none', cursor: 'pointer', marginTop: 4 }} onClick={onShare} disabled={isLoading}>
                 {isLoading ? 'creating…' : 'Create link'}
               </button>
-            );
-          }
-
-          if (status === 'reported') {
-            return (
-              <div style={{ marginTop: 6 }}>
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', color: th.chromeMuted, margin: '0 0 2px' }}>
-                  under review — link hidden pending moderation
-                </p>
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, color: th.chromeFaint, margin: 0, fontStyle: 'italic' }}>
-                  no actions available while under review
-                </p>
-              </div>
-            );
-          }
-
-          if (status === 'blocked') {
-            return (
-              <div style={{ marginTop: 6 }}>
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', color: '#a03030', margin: '0 0 2px' }}>
-                  permanently removed — sharing policy violation
-                </p>
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, color: th.chromeFaint, margin: 0, fontStyle: 'italic' }}>
-                  this project can no longer be shared
-                </p>
-              </div>
             );
           }
 
@@ -3809,14 +3737,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                   <span style={{ ...dot, marginLeft: 6 }} />
                   <span style={{ fontSize: 10, color: th.chromeMuted, fontStyle: 'italic' }}>{activeChapter?.title || 'Untitled section'}</span>
                 </p>
-                {(() => {
-                  // If the full-project link is blocked/reported, section shares are locked too
-                  const projectStatus = projectShareId ? (shareStatuses[projectShareId] ?? 'active') : null;
-                  if (!sectionShareId && (projectStatus === 'reported' || projectStatus === 'blocked')) {
-                    return shareSlot(activeChapter?.id, projectShareId, null, null);
-                  }
-                  return shareSlot(activeChapter?.id, sectionShareId, () => handleShare(activeChapter?.id), () => handleUnshare(activeChapter?.id));
-                })()}
+                {shareSlot(activeChapter?.id, sectionShareId, () => handleShare(activeChapter?.id), () => handleUnshare(activeChapter?.id))}
               </div>
 
               <div style={dg.actions}>
