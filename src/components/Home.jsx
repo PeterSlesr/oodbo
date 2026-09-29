@@ -1388,8 +1388,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
         <span style={s.footerDot}>·</span>
         <a href="/terms"   onClick={(e) => openExternal(e, '/terms')} target="_blank" rel="noopener noreferrer" style={s.footerLink}>terms</a>
         <span style={s.footerDot}>·</span>
-        <a href="/blog"    onClick={(e) => openExternal(e, '/blog')} target="_blank" rel="noopener noreferrer" style={s.footerLink}>blog</a>
-        <span style={s.footerDot}>·</span>
         <a href={MS_STORE_URL} onClick={(e) => openExternal(e, MS_STORE_URL)} target="_blank" rel="noopener noreferrer" style={s.footerLink}>MS Word</a>
         {user && projects.length > 0 && <>
           <span style={s.footerDot}>·</span>
