@@ -14,7 +14,7 @@ const GUP    = 'https://www.googleapis.com/upload/drive/v3';
 
 // Public browser API key (restricted by referrer + to the Drive API). Safe to ship; it only
 // lets the /s/<id> viewer read files that are already "anyone with the link".
-const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || 'AIzaSyAF75R_JR7siWtcL7SIO5BLDIXrZH4zEwI';
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;   // set in .env.local (dev) + Vercel env (prod)
 
 // Anonymous read of a public share snapshot — the /s/<id> viewer's data source. No sign-in:
 // only the API key, which works because the file is shared "anyone with the link" (proven spike).
