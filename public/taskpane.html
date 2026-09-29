@@ -844,30 +844,17 @@
   let _trialUsed = 0;                                     // loaded from storage at startup
   function trialLeft() { return Math.max(0, TRIAL_FORWARDS - _trialUsed); }
 
-  // Called on load — loads the local trial count, then routes: a valid PAID session →
-  // unlimited; otherwise the anonymous trial (or the wall if it's used up). A stored but
-  // unpaid/expired session just falls through to the trial (trial users aren't signed in).
+  // No login gate — the add-in is free, unlimited, and fully client-side (no server, no
+  // account, no trial cap). On load we just reveal the writing UI. `_paid = true` makes
+  // every legacy `!_paid` check a no-op (unlimited publishes, no wall, banner hidden).
   async function checkStoredAuth() {
-    _trialUsed = parseInt(await foGet('oodbo:forwards_used') || '0', 10) || 0;
-
-    const token = await foGet('oodbo:session');
-    if (token) {
-      try {
-        const res = await fetch(_apiBaseUrl + '/api/auth/me', {
-          headers: { Authorization: 'Bearer ' + token }
-        });
-        if (res.ok) {
-          const me = await res.json();
-          if (me.paid) { enterPaid(me.email); return; }
-        } else if (res.status === 401) {
-          if (await tryRefreshPaid()) return;   // refreshed into a paid session
-        }
-      } catch(e) { /* offline — fall through to the landing */ }
-    }
-    // Landing = the login page (as before), now with a "Try for free" option. If the
-    // free trial's already used up, land on the wall instead (sign in / get oodbo).
-    if (trialLeft() > 0) { showAuthForm(); }
-    else { showTrialEnded(); }
+    _paid = true;
+    document.getElementById('auth-gate').classList.remove('open');
+    const so = document.getElementById('sign-out-btn');
+    if (so) so.style.display = 'none';
+    updateTrialBanner();     // _paid=true → banner stays hidden
+    setStatus('Ready');
+    initTaskpane();
   }
 
   // Try to refresh an expired access token into a PAID session. Returns true (and enters
