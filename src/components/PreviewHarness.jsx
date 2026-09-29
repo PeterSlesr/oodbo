@@ -10,7 +10,7 @@ import Home from './Home.jsx';
 import { openDB } from '../lib/sync/store.js';
 
 const MOCK_OWNER = 'preview@oodbo.dev';
-const mockUser = { email: MOCK_OWNER, name: 'Preview', paid: true, provider: 'google' };
+const mockUser = { email: MOCK_OWNER, name: 'Preview', provider: 'google' };
 
 const now = '2026-08-25T21:00:00.000Z';
 const ch = (id, title, content, level = 1) => ({

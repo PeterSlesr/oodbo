@@ -8,7 +8,6 @@ import { exportDocx } from '../lib/docx.js';
 import { exportPdf }  from '../lib/pdf.js';
 import { publishShare, unpublishShare } from '../lib/share.js';
 import { getShareAccessToken } from '../lib/providerSession.js';
-import { PAYMENTS_LIVE } from '../lib/constants.js';
 import { openDB } from '../lib/sync/store.js';   // single IDB opener (v4) — see store.js
 import { getEngine, getSyncBadges, resolveConflict, reassignFork } from '../lib/sync/client.js';
 import ConflictDialog from './ConflictDialog.jsx';
@@ -19,20 +18,7 @@ import IdleScreen from './IdleScreen.jsx';
 import { useOnline } from '../lib/useOnline.js';
 import { serializeOodbo, parseOodbo } from '../lib/sync/canonical.js';   // single serializer
 
-const LS_WEB       = 'https://oodbo.lemonsqueezy.com/checkout/buy/3229a629-9112-4867-a4c1-e9e510a544b1';
 const MS_STORE_URL  = 'https://marketplace.microsoft.com/en-us/product/office/WA200011123';
-const lsUrl = () => LS_WEB;   // direct product checkout, not the store root
-
-// ── Cloud fetch (mirrors Editor.jsx) ──────────────────────────────────────────
-// Share subsystem deferred (no server) — stubbed so the app builds without Supabase/api.
-async function cloudFetch(url, opts = {}) {
-  return fetch(url, {
-    ...opts,
-    headers: {
-      ...opts.headers,
-    },
-  });
-}
 
 // Single serializer/parser (lib/sync/canonical.js). Note: the old local projectToXml here
 // dropped <type> and cursorPosition; canonical preserves them, so exports are now complete.
@@ -267,7 +253,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   const rowMenuRef = useRef(null);
   const [sort,           setSort]           = useState(() => localStorage.getItem(`fwd:home-sort:${user?.email || ''}`) || 'updated');
   const [showTypePicker, setShowTypePicker] = useState(false);
-  const [paidPrompt,     setPaidPrompt]     = useState(false);
   const [notice,         setNotice]         = useState(null);   // themed alert replacement: { title, body }
   const [syncing,          setSyncing]          = useState(false);
   const [deleteTarget,     setDeleteTarget]     = useState(null);
@@ -304,7 +289,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   const [sharesList,     setSharesList]     = useState(null);   // null = loading; [] = loaded/empty
   const [sharesBusy,     setSharesBusy]     = useState(null);   // share id currently being actioned
   const [sharesCopied,   setSharesCopied]   = useState(null);   // share id just copied
-  const [tosAccepted,    setTosAccepted]    = useState(true);   // Option B: content lives in the user's own Drive — no hosted moderation, no policy gate
   const [isMobile,       setIsMobile]       = useState(() => window.innerWidth < 768);
 
   // shareLinks (projectId → Drive fileId) derived from the synced project.shares; shareUrl(fileId)
@@ -325,8 +309,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
-  const [tosChecked,     setTosChecked]     = useState(false);
-  const [tosAccepting,   setTosAccepting]   = useState(false);
   const importRef = useRef(null);
 
   // Inject spinner keyframes once
@@ -738,14 +720,8 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
 
   // External / static-page links. On web the native <a target="_blank"> handles
   // navigation, so this is a no-op. (On desktop this seam intercepts and opens
-  // the real oodbo.io page in the system browser — a plain <a> there would hit
-  // tauri.localhost/… and 404.)
+  // the page in the system browser — a plain <a> there would hit tauri.localhost/… and 404.)
   function openExternal(_e, _url) { /* web: native <a target="_blank"> handles it */ }
-
-  async function handleAcceptShareTos() {
-    // Share deferred (no server ToS endpoint) — no-op until the share rework.
-    setTosAccepting(false);
-  }
 
   // Build the JSON snapshot our /s/<id> viewer renders (whole project, or one section).
   function buildSnapshot(p, chapterId) {
@@ -867,13 +843,11 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
 
   // ── Export single project ──────────────────────────────────────────────────
   function handleExportOodbo(p) {
-    if (!user?.paid) { setPaidPrompt(true); return; }
     const blob = new Blob([projectToXml(p)], { type: 'application/xml' });
     triggerBlobDownload(blob, `${safeName(p.title)}.oodbo`);
   }
 
   async function handleExportDocx(p) {
-    if (!user?.paid) { setPaidPrompt(true); return; }
     try {
       const blob = await exportDocx(p);
       triggerBlobDownload(blob, `${safeName(p.title)}.docx`);
@@ -881,7 +855,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   }
 
   function handleExportPdf(p) {
-    if (!user?.paid) { setPaidPrompt(true); return; }
     try {
       const blob = exportPdf(p);
       triggerBlobDownload(blob, `${safeName(p.title)}.pdf`);
@@ -889,7 +862,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   }
 
   function handleExportTxt(p) {
-    if (!user?.paid) { setPaidPrompt(true); return; }
     const lines = [];
     if (p.title) {
       lines.push(p.title.toUpperCase());
@@ -909,7 +881,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   }
 
   function handleExportMd(p) {
-    if (!user?.paid) { setPaidPrompt(true); return; }
     const lines = [];
     if (p.title) { lines.push(`# ${p.title}`); lines.push(''); }
     for (const ch of p.chapters || []) {
@@ -926,7 +897,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
 
   // ── Export all as zip ──────────────────────────────────────────────────────
   async function handleExportAll() {
-    if (!user?.paid) { setPaidPrompt(true); return; }
     const zip  = new JSZip();
     const seen = {};
     for (const p of projects) {
@@ -1125,9 +1095,9 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
       {/* First child of the flex column, so it pushes the page down instead of covering it.
           Only for users who actually sync — with no cloud connected there's nothing to be
           offline FROM, and promising it'll sync later would be a lie. */}
-      {syncReconnect && user?.provider && user?.paid
+      {syncReconnect && user?.provider
         ? <ReconnectBanner provider={user.provider} onReconnect={onReconnect} />
-        : !online && user?.provider && user?.paid && <OfflineBanner />}
+        : !online && user?.provider && <OfflineBanner />}
 
       {/* Header */}
       <header style={s.header}>
@@ -1147,7 +1117,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
         <div style={s.headerLine}>
           <h1 style={s.heading}>Projects</h1>
           <span style={s.flex1} />
-          {onSync && user?.provider && user?.paid && (() => {
+          {onSync && user?.provider && (() => {
             const lastSynced = (() => { try { return localStorage.getItem(`fwd:lastSynced:${user?.email || ''}`); } catch { return null; } })();
             return (
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
@@ -1423,10 +1393,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
         <a href="/blog"    onClick={(e) => openExternal(e, '/blog')} target="_blank" rel="noopener noreferrer" style={s.footerLink}>blog</a>
         <span style={s.footerDot}>·</span>
         <a href={MS_STORE_URL} onClick={(e) => openExternal(e, MS_STORE_URL)} target="_blank" rel="noopener noreferrer" style={s.footerLink}>MS Word</a>
-        {PAYMENTS_LIVE && <>
-          <span style={s.footerDot}>·</span>
-          <a href="/download" onClick={(e) => openExternal(e, '/download')} target="_blank" rel="noopener noreferrer" style={s.footerLink}>desktop app</a>
-        </>}
         {user && projects.length > 0 && <>
           <span style={s.footerDot}>·</span>
           <button style={s.footerBtn} onClick={openBin}>recycle bin</button>
@@ -1554,33 +1520,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
         </div>
       )}
 
-      {/* Paid feature prompt */}
-      {paidPrompt && (
-        <div style={dg.overlay} onClick={() => setPaidPrompt(false)}>
-          <BodyScrollLock />
-          <div style={dg.box} onClick={e => e.stopPropagation()}>
-            {!PAYMENTS_LIVE ? (<>
-              <p style={dg.title}>Coming soon</p>
-              <div style={dg.rule} />
-              <p style={dg.body}>Export is still in development. Check back soon.</p>
-              <div style={dg.actions}>
-                <button style={btn(th, 'primary', { mobile: isMobile })} onClick={() => setPaidPrompt(false)}>Got it</button>
-              </div>
-            </>) : (<>
-              <p style={dg.title}>Unlock oodbo to export</p>
-              <div style={dg.rule} />
-              <p style={dg.body}>One payment. Every feature. Yours forever — no subscription.</p>
-              <div style={dg.actions}>
-                <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setPaidPrompt(false)}>Maybe later</button>
-                <a href={lsUrl()} target="_blank" rel="noopener noreferrer"
-                   style={{ ...btn(th, 'primary', { mobile: isMobile }), display: 'inline-block' }}
-                   onClick={() => setPaidPrompt(false)}>Get oodbo</a>
-              </div>
-            </>)}
-          </div>
-        </div>
-      )}
-
       {/* Export modal */}
       {exportTarget && (
         <div style={dg.overlay} onClick={() => setExportTarget(null)}>
@@ -1620,48 +1559,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
         <div style={dg.overlay} onClick={() => setShareTarget(null)}>
           <BodyScrollLock />
           <div style={{ ...dg.box, ...(isMobile ? {} : { width: 420 }) }} onClick={e => e.stopPropagation()}>
-            {!tosAccepted ? (
-              <>
-                <p style={dg.title}>Sharing Policy</p>
-                <div style={dg.rule} />
-                <p style={{ ...dg.body, fontSize: 12, color: th.chromeMuted, fontStyle: 'italic', margin: '0 0 14px' }}>
-                  Before creating your first share link, please read and accept the Sharing Policy.
-                </p>
-                <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
-                  <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: '#333', fontWeight: 'bold', margin: '0 0 6px' }}>Bannable offences — permanent account termination, no refund:</p>
-                  <ul style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: '#333', margin: '0 0 14px', paddingLeft: 18, lineHeight: 1.7 }}>
-                    <li>Sexual content involving minors (CSAM), including fictional depictions</li>
-                    <li>Credible threats of violence against a named individual or group</li>
-                    <li>Content facilitating a crime, including doxxing</li>
-                    <li>Content that violates applicable law</li>
-                  </ul>
-                  <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: '#333', fontWeight: 'bold', margin: '0 0 6px' }}>Sharing suspension offences — link removal and privileges suspended:</p>
-                  <ul style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: '#333', margin: '0 0 14px', paddingLeft: 18, lineHeight: 1.7 }}>
-                    <li>Graphic real-world violence presented approvingly or for shock value</li>
-                    <li>Targeted harassment of a named private individual</li>
-                    <li>Hate speech that dehumanises people based on protected characteristics</li>
-                    <li>Copyright infringement or defamatory content</li>
-                  </ul>
-                  <p style={{ fontFamily: 'Georgia, serif', fontSize: 11, color: '#888', fontStyle: 'italic', margin: '0 0 14px', lineHeight: 1.6 }}>
-                    Literary fiction exploring dark themes — violence, trauma, morally complex characters — is not prohibited. The prohibition applies to intent and framing, not themes.{' '}
-                    <a href="/terms#sharing" onClick={(e) => openExternal(e, '/terms#sharing')} target="_blank" rel="noopener noreferrer" style={{ color: '#333' }}>Read the full Sharing Policy</a>
-                  </p>
-                </div>
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, lineHeight: 1.5, marginTop: 16 }}>
-                  <input type="checkbox" checked={tosChecked} onChange={e => setTosChecked(e.target.checked)} style={{ marginTop: 3, flexShrink: 0 }} />
-                  I have read and agree to the Sharing Policy. I understand that violations may result in suspension or permanent account termination.
-                </label>
-                <div style={dg.actions}>
-                  <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setShareTarget(null)}>Cancel</button>
-                  <button
-                    style={{ ...btn(th, 'primary', { mobile: isMobile }), ...(tosChecked ? {} : { opacity: 0.4, cursor: 'default' }) }}
-                    onClick={handleAcceptShareTos}
-                    disabled={!tosChecked || tosAccepting}
-                  >{tosAccepting ? 'Saving…' : 'Accept & continue'}</button>
-                </div>
-              </>
-            ) : (
-              <>
+            <>
                 <p style={dg.title}>Share "{shareTarget.title || 'Untitled'}"</p>
                 <div style={dg.rule} />
                 {(() => {
@@ -1716,7 +1614,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                   <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setShareTarget(null)}>Close</button>
                 </div>
               </>
-            )}
           </div>
         </div>
       )}
@@ -1748,7 +1645,6 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
               <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setDeleteTarget(null)}>Cancel</button>
               <button style={btn(th, 'secondary', { mobile: isMobile })}
                 onClick={() => {
-                  if (!user?.paid) { setPaidPrompt(true); return; }
                   const blob = new Blob([projectToXml(deleteTarget)], { type: 'application/xml' });
                   triggerBlobDownload(blob, `${safeName(deleteTarget.title)}.oodbo`);
                   setDeleteTarget(null);

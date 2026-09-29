@@ -10,7 +10,6 @@ import { exportPdf }  from '../lib/pdf.js';
 import { publishShare, unpublishShare } from '../lib/share.js';
 import { getShareAccessToken } from '../lib/providerSession.js';
 import JSZip from 'jszip';
-import { PAYMENTS_LIVE } from '../lib/constants.js';
 import { loadGuestDraft, saveGuestDraft } from '../lib/guestStore.js';
 import { openDB } from '../lib/sync/store.js';   // single IDB opener (v4) — see store.js
 import { serializeOodbo, parseOodbo } from '../lib/sync/canonical.js';   // single serializer
@@ -19,9 +18,6 @@ import { saveForwardDraft, loadForwardDraft, clearForwardDraft } from '../lib/fo
 import OfflineBanner from './OfflineBanner.jsx';
 import ReconnectBanner from './ReconnectBanner.jsx';
 import { useOnline } from '../lib/useOnline.js';
-
-// oodbo web-app checkout (guest "get oodbo" → new tab). Mirrors TestHome's LS_WEB.
-const LS_WEB = 'https://oodbo.lemonsqueezy.com/checkout/buy/3229a629-9112-4867-a4c1-e9e510a544b1';
 
 // Guest onboarding tour (desktop only) — steps anchor to [data-tour] elements.
 // Copy is placeholder; final wording is Paul's.
@@ -511,7 +507,7 @@ function renderProgressCard({ title, words, sections, colors, entryLabel, dateSt
     ctx.fillText(dateStr, cx, 858);
   }
 
-  // Footer — "written by a human at oodbo.io" (oodbo.io emphasised)
+  // Footer — "written by a human at write.mercoogs.com" (brand emphasised)
   const footY = 930;
   const phrase = 'written by a human at ';
   const brand  = 'write.mercoogs.com';
@@ -809,13 +805,7 @@ function layoutMarkers(anns, rawYs) {
   return groups.map(g => ({ y: g.rawY, anns: g.anns }));
 }
 
-// PAYMENTS_LIVE imported from src/lib/constants.js
-
-// ── LemonSqueezy checkout URL ─────────────────────────────────────────────────
-// Pre-fills the checkout email when the user is signed in so the payment
-// identity always matches their account.
 const MS_STORE_URL = 'https://marketplace.microsoft.com/en-us/product/office/WA200011123';
-const lsUrl = () => LS_WEB;   // direct product checkout, not the store root
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -895,8 +885,8 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   const [addingAnn, setAddingAnn]         = useState(false);
   const [annInput, setAnnInput]           = useState('');
   const [annHint,  setAnnHint]            = useState('');
-  const [signInPrompt, setSignInPrompt]         = useState(false);
   const [newProjectPrompt, setNewProjectPrompt] = useState(false);
+  const [exportOpen,   setExportOpen]           = useState(false);  // export-format menu (guest + signed-in)
 
   const [expandedAnnId, setExpandedAnnId]     = useState(null);
   const [editingAnnId,  setEditingAnnId]      = useState(null);
@@ -1002,11 +992,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   });
   const [tourStep,    setTourStep]    = useState(null);  // null = tour not running; 0..n = current step
   const [tourSkipped, setTourSkipped] = useState(false);
-  const [getOodboOpen, setGetOodboOpen] = useState(false);  // "copy your writing?" gate before the store
-  // TOS acceptance state — initialised from user prop; updated locally after acceptance
-  const [tosAccepted,   setTosAccepted]   = useState(true);   // Option A: content lives in the user's own Drive — no hosted moderation, no policy gate
-  const [tosChecked,    setTosChecked]    = useState(false);
-  const [tosAccepting,  setTosAccepting]  = useState(false);
   const [editorTheme, setEditorTheme] = useState(
     () => localStorage.getItem(`fwd:editor-theme:${user?.email || ''}`) || 'parchment'
   );
@@ -1033,6 +1018,57 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
     URL.revokeObjectURL(url);
   }
 
+  // ── Export the active project (free for everyone, incl. guests) ──────────────
+  // Mirrors Home's export menu but for the one open project — a guest's writing
+  // is ephemeral, so an export is their way to keep it. No "export all": there's
+  // only one project in this context.
+  const exportSafeName = (t) => (t || 'oodbo').replace(/[^a-z0-9]/gi, '-');
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+  function projectToTxt(p) {
+    const lines = [];
+    if (p.title) { lines.push(p.title.toUpperCase()); lines.push('='.repeat(p.title.length)); lines.push(''); }
+    for (const ch of p.chapters || []) {
+      if (ch.title) { lines.push(ch.title); lines.push('-'.repeat(ch.title.length)); }
+      if (ch.content) lines.push(ch.content);
+      lines.push('');
+    }
+    return lines.join('\n');
+  }
+  function projectToMd(p) {
+    const lines = [];
+    if (p.title) { lines.push(`# ${p.title}`); lines.push(''); }
+    for (const ch of p.chapters || []) {
+      if (ch.title) { lines.push(`${'#'.repeat((ch.level || 1) + 1)} ${ch.title}`); lines.push(''); }
+      if (ch.content) { lines.push(ch.content); lines.push(''); }
+    }
+    return lines.join('\n');
+  }
+  async function handleExport(fmt) {
+    setExportOpen(false);
+    const p    = project;
+    const base = exportSafeName(p.title);
+    try {
+      if (fmt === 'oodbo') {
+        downloadBlob(new Blob([projectToXml(p)], { type: 'application/xml' }), `${base}.oodbo`);
+      } else if (fmt === 'docx') {
+        downloadBlob(await exportDocx(p), `${base}.docx`);
+      } else if (fmt === 'pdf') {
+        downloadBlob(exportPdf(p), `${base}.pdf`);
+      } else if (fmt === 'txt') {
+        downloadBlob(new Blob([projectToTxt(p)], { type: 'text/plain' }), `${base}.txt`);
+      } else if (fmt === 'md') {
+        downloadBlob(new Blob([projectToMd(p)], { type: 'text/markdown' }), `${base}.md`);
+      }
+    } catch {
+      setConfirmDialog({ title: 'Export failed', body: `Could not export the .${fmt} file.`, notice: true });
+    }
+  }
+
   // ── FSA save functions ─────────────────────────────────────────────────────
 
   // requestPerm=true  → requestPermission (user-initiated, may show browser prompt)
@@ -1049,7 +1085,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   }
 
   async function handleSave() {
-    if (!user?.paid) { setSignInPrompt(true); return; }
     if (!FSA_SUPPORTED) { triggerDownload(); return; }
 
     const xml = projectToXml(project);
@@ -1091,7 +1126,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   }
 
   async function handleSaveAs() {
-    if (!user?.paid) { setSignInPrompt(true); return; }
     if (!FSA_SUPPORTED) return;
     const xml = projectToXml(project);
     try {
@@ -1183,7 +1217,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   }
 
   function createProjectOfType(type) {
-    if (!user?.paid) { setNewProjectPrompt(false); setSignInPrompt(true); return; }
     const ch = newChapter(1, type === 'journal' || type === 'log');
     const p  = { id: genId(), title: randomProjectName(projects), type, chapters: [ch], activeChapterId: ch.id };
     setProjects(prev => { const next = [...prev, p]; saveProjects(next); return next; });
@@ -1420,14 +1453,9 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
       window.removeEventListener('offline', handleOffline);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.provider, user?.paid]);
+  }, [user?.provider]);
 
   // ── Share helpers ────────────────────────────────────────────────────────────
-
-  async function handleAcceptShareTos() {
-    // Share deferred (no server ToS endpoint) — no-op until the share rework.
-    setTosAccepting(false);
-  }
 
   function shareKey(projectId, chapterId) {
     return chapterId ? `${projectId}:${chapterId}` : projectId;
@@ -1630,11 +1658,11 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
 
   // Periodic pull every 5 min — boots to home if another device has a newer version
   useEffect(() => {
-    if (!user?.provider || !user?.paid) return;
+    if (!user?.provider) return;
     const id = setInterval(() => { if (getEngine()) runSync(eng => eng.syncOne(projectRef.current?.id)); }, 5 * 60_000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.provider, user?.paid]);
+  }, [user?.provider]);
 
   // Sidebar drag-to-resize (desktop only)
   useEffect(() => {
@@ -2140,12 +2168,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   function markTourSeen() {
     try { sessionStorage.setItem('oodbo.guest.tourSeen', '1'); } catch {}
     try { if (user?.email) localStorage.setItem(`oodbo.tourSeen:${user.email}`, '1'); } catch {}
-  }
-
-  // Open the web checkout in a new tab so the guest tab (and draft) stays intact.
-  function openStore() {
-    window.open(LS_WEB, '_blank', 'noopener,noreferrer');
-    setGetOodboOpen(false);
   }
 
   // Guest onboarding pointer: inject the bounce keyframes once, and dismiss the
@@ -2802,55 +2824,29 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
 
       {/* First child of the flex column, so it pushes the page down instead of covering it.
           Gated exactly like the sync indicator below: no cloud, nothing to be offline from. */}
-      {syncReconnect && !isReadOnly && user?.provider && user?.paid
+      {syncReconnect && !isReadOnly && user?.provider
         ? <ReconnectBanner provider={user.provider} onReconnect={onReconnect} />
-        : !online && !isReadOnly && user?.provider && user?.paid && <OfflineBanner />}
+        : !online && !isReadOnly && user?.provider && <OfflineBanner />}
 
-      {/* Trial banner */}
-      {!isReadOnly && !user && (
-        guest ? (
-          <div style={{ ...s.trialBanner, background: '#1f1f1f' }}>
-            <span>Guest mode — nothing here is saved. Sign in free to keep your writing in your own cloud.</span>
-            <span style={s.trialActions}>
-              <button style={{ ...s.trialSignIn, color: '#fff', fontStyle: 'normal' }} onClick={handleCopyGuest}>
-                {guestCopied ? 'copied ✓' : 'copy your writing'}
-              </button>
-              <span style={s.trialDot}>·</span>
-              {PAYMENTS_LIVE
-                ? <>
-                    <button style={s.trialSignIn} onClick={() => setGetOodboOpen(true)}>get oodbo</button>
-                    <span style={s.trialDot}>·</span>
-                    <button style={s.trialSignIn} onClick={onSignIn}>sign in</button>
-                  </>
-                : <button style={s.trialSignIn} onClick={onSignIn}>sign in</button>
-              }
-              {!isMobile && (
-                <>
-                  <span style={s.trialDot}>·</span>
-                  <button style={s.trialSignIn} onClick={() => { setTourPromptOpen(false); setTourSkipped(false); setTourStep(0); }}>take a tour</button>
-                </>
-              )}
-            </span>
-          </div>
-        ) : (
-          <div style={{ ...s.trialBanner, background: '#1f1f1f' }}>
-            <span>Your work is saved in this browser. Sign in to back it up and access it anywhere.</span>
-            <span style={s.trialActions}>
-              {PAYMENTS_LIVE
-                ? <a href={lsUrl()} style={s.trialBuy} target="_blank" rel="noopener noreferrer">Get oodbo</a>
-                : <a href="mailto:hello@oodbo.io" style={s.trialBuy}>Send feedback</a>
-              }
-              <span style={s.trialDot}>·</span>
-              <button style={s.trialSignIn} onClick={onSignIn}>sign in</button>
-            </span>
-          </div>
-        )
-      )}
-      {PAYMENTS_LIVE && !isReadOnly && user && !user.paid && (
+      {/* Guest banner — a guest's writing is ephemeral, so the actions here (copy / export /
+          sign in) are how they keep it. In the editor, !user only ever means guest mode. */}
+      {!isReadOnly && !user && guest && (
         <div style={{ ...s.trialBanner, background: '#1f1f1f' }}>
-          <span>You're signed in. Upgrade to unlock cross-device sync and export.</span>
+          <span>Guest mode — nothing here is saved. Export it, or sign in free to keep it in your own cloud.</span>
           <span style={s.trialActions}>
-            <a href={lsUrl()} style={s.trialBuy} target="_blank" rel="noopener noreferrer">Upgrade</a>
+            <button style={{ ...s.trialSignIn, color: '#fff', fontStyle: 'normal' }} onClick={handleCopyGuest}>
+              {guestCopied ? 'copied ✓' : 'copy your writing'}
+            </button>
+            <span style={s.trialDot}>·</span>
+            <button style={s.trialSignIn} onClick={() => setExportOpen(true)}>export</button>
+            <span style={s.trialDot}>·</span>
+            <button style={s.trialSignIn} onClick={onSignIn}>sign in</button>
+            {!isMobile && (
+              <>
+                <span style={s.trialDot}>·</span>
+                <button style={s.trialSignIn} onClick={() => { setTourPromptOpen(false); setTourSkipped(false); setTourStep(0); }}>take a tour</button>
+              </>
+            )}
           </span>
         </div>
       )}
@@ -3197,7 +3193,9 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           )}
           {!isReadOnly && <button data-tour="new-section" style={{ ...btn(th, 'primary', { mobile: isMobile }), display: 'block', width: 'calc(100% - 24px)', margin: '8px 12px' }} onClick={addChapter}>{usesEntryLabel ? '+ New entry' : '+ New section'}</button>}
           </div>{/* end scrollable chapter list */}
-          {!isReadOnly && !guest && !(user?.provider && user?.paid) && (
+          {/* Save to a local file — shown when there's no cloud sync (guests + any non-provider
+              session); signed-in cloud users persist automatically, so they don't need it. */}
+          {!isReadOnly && !(user?.provider) && (
             <div style={{ ...s.sideFileActions, borderTop: `1px solid ${th.chromeBorder}` }}>
               <button style={{ ...s.sideFileBtn, color: th.chromeMuted }} onClick={handleSave}>Save</button>
               {FSA_SUPPORTED && !fsaDegraded && (
@@ -3206,6 +3204,8 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                   <button style={{ ...s.sideFileBtn, color: th.chromeMuted }} onClick={handleSaveAs}>Save As</button>
                 </>
               )}
+              <span style={{ color: th.chromeFaint }}>·</span>
+              <button style={{ ...s.sideFileBtn, color: th.chromeMuted }} onClick={() => setExportOpen(true)}>Export</button>
             </div>
           )}
           {/* Share links — underlined text, not buttons (lower weight than "+ New section") */}
@@ -3217,7 +3217,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           )}
 
           {/* Cloud sync status — hidden in readOnly mode */}
-          {!isReadOnly && user?.provider && user?.paid && (
+          {!isReadOnly && user?.provider && (
             <div style={{ padding: '6px 12px 2px', fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', color: syncStatus === 'error' ? '#a03030' : syncStatus === 'offline' ? '#888' : th.chromeFaint }}>
               {syncStatus === 'syncing' && 'Syncing…'}
               {syncStatus === 'synced'  && `Synced ${lastSyncedRef.current ? fmtSync(lastSyncedRef.current) : '✓'}`}
@@ -3280,7 +3280,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                 style={{ fontFamily: 'Georgia, serif', fontSize: 12, padding: '6px 16px', background: 'transparent', color: th.chromeMuted, border: `1px solid ${th.chromeBorder}`, cursor: 'pointer', width: '100%' }}
                 onClick={onSignIn}
               >Sign in</button>
-              {PAYMENTS_LIVE && <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, color: th.chromeFaint, fontStyle: 'italic', margin: 0 }}>One-time purchase · no subscription</p>}
             </div>
           ) : guest ? null : (
             <div style={{ ...s.sideAccountRow, borderTop: `1px solid ${th.chromeBorder}` }}>
@@ -3680,37 +3679,31 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
         </div>
       )}
 
-      {/* Sign-in required modal */}
-      {signInPrompt && (
-        <div style={dg.overlay} onClick={() => setSignInPrompt(false)}>
+      {/* Export format menu — the active project, any format (free for everyone, incl. guests) */}
+      {exportOpen && (
+        <div style={dg.overlay} onClick={() => setExportOpen(false)}>
           <BodyScrollLock />
           <div style={dg.box} onClick={e => e.stopPropagation()}>
-            {!PAYMENTS_LIVE ? (<>
-              <p style={dg.title}>Coming soon</p>
-              <div style={dg.rule} />
-              <p style={dg.body}>This feature is still in development. Check back soon.</p>
-              <div style={dg.actions}>
-                <button style={btn(th, 'primary', { mobile: isMobile })} onClick={() => setSignInPrompt(false)}>Got it</button>
-              </div>
-            </>) : user ? (<>
-              <p style={dg.title}>Unlock oodbo to continue</p>
-              <div style={dg.rule} />
-              <p style={dg.body}>One payment. Every feature. Yours forever — no subscription.</p>
-              <div style={dg.actions}>
-                <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setSignInPrompt(false)}>Maybe later</button>
-                <a href={lsUrl()} target="_blank" rel="noopener noreferrer"
-                   style={{ ...btn(th, 'primary', { mobile: isMobile }), display: 'inline-block' }}
-                   onClick={() => setSignInPrompt(false)}>Get oodbo</a>
-              </div>
-            </>) : (<>
-              <p style={dg.title}>Sign in to continue</p>
-              <div style={dg.rule} />
-              <p style={dg.body}>This feature is available with a full copy of oodbo.</p>
-              <div style={dg.actions}>
-                <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setSignInPrompt(false)}>Not now</button>
-                <button style={btn(th, 'primary', { mobile: isMobile })} onClick={() => { setSignInPrompt(false); onSignIn(); }}>Sign in</button>
-              </div>
-            </>)}
+            <p style={dg.title}>Export “{project.title || 'Untitled'}”</p>
+            <div style={dg.rule} />
+            <p style={dg.body}>Download this project to your device.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                ['oodbo', 'oodbo file (.oodbo)'],
+                ['docx',  'Word (.docx)'],
+                ['pdf',   'PDF (.pdf)'],
+                ['txt',   'Plain text (.txt)'],
+                ['md',    'Markdown (.md)'],
+              ].map(([fmt, label]) => (
+                <button key={fmt}
+                  style={{ ...btn(th, 'secondary', { mobile: isMobile }), textAlign: 'left', width: '100%' }}
+                  onClick={() => handleExport(fmt)}
+                >{label}</button>
+              ))}
+            </div>
+            <div style={dg.actions}>
+              <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setExportOpen(false)}>Close</button>
+            </div>
           </div>
         </div>
       )}
@@ -3793,60 +3786,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           );
         };
 
-        // ── TOS gate — shown once before user has accepted sharing policy ──────
-        if (!tosAccepted) {
-          return (
-            <div style={dg.overlay} onClick={() => setShareModal(false)}>
-              <BodyScrollLock />
-              <div style={{ ...dg.box, ...(isMobile ? {} : { width: 440 }) }} onClick={e => e.stopPropagation()}>
-                <p style={dg.title}>Sharing Policy</p>
-                <div style={dg.rule} />
-                <p style={{ ...dg.body, color: th.chromeMuted, fontStyle: 'italic', margin: '0 0 14px' }}>
-                  Before creating your first share link, please read and accept the Sharing Policy.
-                </p>
-                <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
-                  <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, fontWeight: 'bold', margin: '0 0 6px' }}>Bannable offences — permanent account termination, no refund:</p>
-                  <ul style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, margin: '0 0 14px', paddingLeft: 18, lineHeight: 1.7 }}>
-                    <li>Sexual content involving minors (CSAM), including fictional depictions</li>
-                    <li>Credible threats of violence against a named individual or group</li>
-                    <li>Content facilitating a crime, including doxxing</li>
-                    <li>Content that violates applicable law</li>
-                  </ul>
-                  <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, fontWeight: 'bold', margin: '0 0 6px' }}>Sharing suspension offences — link removal and privileges suspended:</p>
-                  <ul style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, margin: '0 0 14px', paddingLeft: 18, lineHeight: 1.7 }}>
-                    <li>Graphic real-world violence presented approvingly or for shock value</li>
-                    <li>Targeted harassment of a named private individual</li>
-                    <li>Hate speech that dehumanises people based on protected characteristics</li>
-                    <li>Copyright infringement or defamatory content</li>
-                  </ul>
-                  <p style={{ fontFamily: 'Georgia, serif', fontSize: 11, color: th.chromeMuted, fontStyle: 'italic', margin: '0 0 14px', lineHeight: 1.6 }}>
-                    Literary fiction exploring dark themes — violence, trauma, morally complex characters — is not prohibited. The prohibition applies to intent and framing, not themes.{' '}
-                    <a href="/terms#sharing" target="_blank" rel="noopener noreferrer" style={{ color: th.chromeText }}>Read the full Sharing Policy</a>
-                  </p>
-                </div>
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, lineHeight: 1.5, marginTop: 16 }}>
-                  <input
-                    type="checkbox"
-                    checked={tosChecked}
-                    onChange={e => setTosChecked(e.target.checked)}
-                    style={{ marginTop: 3, flexShrink: 0 }}
-                  />
-                  I have read and agree to the Sharing Policy. I understand that violations may result in suspension or permanent account termination.
-                </label>
-                <div style={dg.actions}>
-                  <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setShareModal(false)}>Cancel</button>
-                  <button
-                    style={{ ...btn(th, 'primary', { mobile: isMobile }), ...(tosChecked ? {} : { opacity: 0.4, cursor: 'default' }) }}
-                    onClick={handleAcceptShareTos}
-                    disabled={!tosChecked || tosAccepting}
-                  >{tosAccepting ? 'Saving…' : 'Accept & continue'}</button>
-                </div>
-              </div>
-            </div>
-          );
-        }
-
-        // ── Share options — shown after TOS accepted ───────────────────────────
+        // ── Share options ──────────────────────────────────────────────────────
         return (
           <div style={dg.overlay} onClick={() => setShareModal(false)}>
             <BodyScrollLock />
@@ -3932,23 +3872,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
 
             <div style={dg.actions}>
               <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setProgressModal(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Guest "get oodbo" — copy gate before opening the store in a new tab */}
-      {getOodboOpen && (
-        <div style={dg.overlay} onClick={() => setGetOodboOpen(false)}>
-          <BodyScrollLock />
-          <div style={dg.box} onClick={e => e.stopPropagation()}>
-            <p style={dg.title}>Copy your guest writing?</p>
-            <div style={dg.rule} />
-            <p style={dg.body}>Your writing here won't carry over to a new account — copy it now to paste in after you get oodbo.</p>
-            <div style={dg.actions}>
-              <button style={btn(th, 'ghost', { mobile: isMobile })} onClick={() => setGetOodboOpen(false)}>Cancel</button>
-              <button style={btn(th, 'secondary', { mobile: isMobile })} onClick={openStore}>No thanks, continue</button>
-              <button style={btn(th, 'primary', { mobile: isMobile })} onClick={() => { handleCopyGuest(); openStore(); }}>Copy my writing &amp; continue</button>
             </div>
           </div>
         </div>

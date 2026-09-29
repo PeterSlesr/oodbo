@@ -7,6 +7,18 @@ import { createIdbAdapter, closeDB, newSyncRecord, stampDirty, __test } from './
 import { createForkHandler } from './fork.js';
 import { serializeOodbo, canonicalHash } from './canonical.js';
 
+// This suite runs in node (no jsdom): provide a minimal localStorage so the kill-switch
+// and owner-guard paths in client.js have somewhere to read/write.
+if (typeof localStorage === 'undefined') {
+  const _ls = new Map();
+  globalThis.localStorage = {
+    getItem:    (k) => (_ls.has(k) ? _ls.get(k) : null),
+    setItem:    (k, v) => { _ls.set(k, String(v)); },
+    removeItem: (k) => { _ls.delete(k); },
+    clear:      () => { _ls.clear(); },
+  };
+}
+
 beforeEach(async () => {
   teardownSync();
   try { localStorage.removeItem('oodbo:sync-off'); } catch {}
@@ -94,23 +106,24 @@ describe('migration §12', () => {
 });
 
 describe('client gating & kill-switch', () => {
-  const validUser = { provider: 'azure', paid: true, email: 'me@x.com' };
+  const validUser = { provider: 'azure', email: 'me@x.com' };
   const getToken = async () => 'tok';
 
-  it('guest / unpaid / no-provider users get no engine', () => {
-    expect(initSync({ user: null, getToken })).toBeNull();
-    expect(initSync({ user: { provider: 'azure', paid: false, email: 'x' }, getToken })).toBeNull();
-    expect(initSync({ user: { provider: null, paid: true, email: 'x' }, getToken })).toBeNull();
+  // Gating is provider-only now — there is no payment concept. A guest (no user) or a
+  // signed-in user without a cloud provider runs local-only (no engine).
+  it('guest / no-provider users get no engine', async () => {
+    expect(await initSync({ user: null, getToken })).toBeNull();
+    expect(await initSync({ user: { provider: null, email: 'x' }, getToken })).toBeNull();
   });
 
-  it('a valid paid+provider user gets an engine', () => {
-    expect(initSync({ user: validUser, getToken })).not.toBeNull();
+  it('a signed-in provider user gets an engine', async () => {
+    expect(await initSync({ user: validUser, getToken })).not.toBeNull();
     expect(getEngine()).not.toBeNull();
   });
 
-  it('the kill-switch forces local-only (no engine)', () => {
+  it('the kill-switch forces local-only (no engine)', async () => {
     localStorage.setItem('oodbo:sync-off', '1');
-    expect(initSync({ user: validUser, getToken })).toBeNull();
+    expect(await initSync({ user: validUser, getToken })).toBeNull();
     expect(getEngine()).toBeNull();
   });
 });

@@ -58,13 +58,22 @@ export function exportPdf(project) {
     }
 
     if (ch.content) {
-      // Split on blank lines → paragraphs; collapse single newlines within a para
-      const paras = ch.content.split(/\n{2,}/);
-      for (const para of paras) {
-        const t = para.replace(/\n/g, ' ').trim();
-        if (!t) continue;
-        renderText(t, 11, 'normal', 10);
+      // Preserve the writer's line breaks — forward-only writing is line-oriented, so every
+      // newline is a real break and blank lines are paragraph gaps. Mirrors the share view's
+      // white-space:pre-wrap; do NOT collapse single newlines to spaces (that smushed exports).
+      doc.setFont('times', 'normal');
+      doc.setFontSize(11);
+      const lh = 11 * 1.55;
+      for (const raw of ch.content.split('\n')) {
+        const line = raw.replace(/\s+$/, '');
+        if (!line.trim()) { y += lh * 0.6; continue; }   // blank line → paragraph gap
+        for (const wrapped of doc.splitTextToSize(line, textW)) {
+          newPageIfNeeded(lh);
+          doc.text(wrapped, margin, y);
+          y += lh;
+        }
       }
+      y += 10;   // trailing gap after the chapter body
     }
   }
 

@@ -2,35 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { EDITOR_THEMES } from './lib/themes.js';
 import { btn } from './lib/ui.js';
 import Editor from './components/Editor.jsx';
-import Auth from './components/Auth.jsx';
 import DesktopOAuthComplete from './components/DesktopOAuthComplete.jsx';
 import Home from './components/Home.jsx';
 import ShareView from './components/ShareView.jsx';
 import { initSync, getEngine, clearLocalSession, runMigration } from './lib/sync/client.js';
-import NotEntitled from './components/NotEntitled.jsx';
-import { PAYMENTS_LIVE } from './lib/constants.js';
 import { signIn as providerSignIn, getValidProviderAccessToken, signOut as providerSignOut } from './lib/providerSession.js';
-
-// True inside the Tauri desktop shell (same detection the desktop build uses).
-// The web entitlement gate below must never fire on desktop, which has a free tier.
-const IS_TAURI = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__;
-
-
-function getDeviceLabel() {
-  const ua = navigator.userAgent;
-  let browser = 'Browser';
-  let os = 'Unknown';
-  if (ua.includes('Firefox/'))                               browser = 'Firefox';
-  else if (ua.includes('Edg/'))                              browser = 'Edge';
-  else if (ua.includes('Chrome/'))                           browser = 'Chrome';
-  else if (ua.includes('Safari/') && !ua.includes('Chrome')) browser = 'Safari';
-  if (ua.includes('Windows'))                                os = 'Windows';
-  else if (ua.includes('iPhone') || ua.includes('iPad'))     os = 'iOS';
-  else if (ua.includes('Android'))                           os = 'Android';
-  else if (ua.includes('Mac OS'))                            os = 'Mac';
-  else if (ua.includes('Linux'))                             os = 'Linux';
-  return `${browser} · ${os}`;
-}
 
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -52,7 +28,6 @@ export default function App() {
     return <ShareView fileId={decodeURIComponent(window.location.pathname.slice(3))} />;
   }
   const [user,            setUser]            = useState(null);   // null=checking, false=guest, object=signed-in
-  const [showAuth,        setShowAuth]        = useState(() => new URLSearchParams(window.location.search).get('signup') === '1');
   const [view,            setView]            = useState('editor'); // 'home' | 'editor'
   const [openProjectId,   setOpenProjectId]   = useState(null);    // specific ID, 'new', or null
   const [jumpTarget,      setJumpTarget]      = useState(null);    // { chapterId, cursorPosition, mode }
@@ -81,13 +56,13 @@ export default function App() {
   // reconnect. Costs zero network when the outbox is empty (engine.sweepDirty short-circuits),
   // so this also closes the old gap where the Home page never auto-synced.
   useEffect(() => {
-    if (!(user?.provider && user?.paid)) return;
+    if (!user?.provider) return;
     const id = setInterval(() => { getEngine()?.sweepDirty(); }, 60_000);
     function onOnline() { const eng = getEngine(); if (eng) { eng.reset(); eng.sweepDirty(); } }
     window.addEventListener('online', onOnline);
     return () => { clearInterval(id); window.removeEventListener('online', onOnline); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.provider, user?.paid]);
+  }, [user?.provider]);
 
 
   // DEV-ONLY: pop the reconnect banner on demand — run `__forceReconnect()` in the console —
@@ -101,10 +76,9 @@ export default function App() {
 
   // Shared post-auth path: used by both interactive sign-in and silent boot restore.
   async function enterSignedIn(u) {
-    const me = { ...u, paid: true };              // free for everyone; paid kept truthy for old checks
+    const me = { ...u };                          // free for everyone — no entitlement concept
     setUser(me);
     try { localStorage.setItem('fwd:user', JSON.stringify(me)); } catch {}
-    setShowAuth(false);
     setSyncReconnect(false);   // (re)authed — clear any "storage disconnected" banner
     setView('home');
     setInitialSyncing(true);
@@ -210,18 +184,6 @@ export default function App() {
     );
   }
 
-  if (showAuth) {
-    return <Auth onCancel={() => setShowAuth(false)} />;
-  }
-
-  // Web entitlement gate: web access is paid-only. A signed-in user without a
-  // license (no account or paid=false) gets a "what happened / next steps" page.
-  // Skipped on desktop (free tier) and when payments aren't live (avoids locking
-  // out signed-in users pre-launch, when there's nothing to buy).
-  if (user && !user.paid && !IS_TAURI && PAYMENTS_LIVE) {
-    return <NotEntitled email={user.email} onSignOut={handleSignOut} />;
-  }
-
   // Signed-in: show homepage or editor
   if (user) {
     if (view === 'home') {
@@ -271,26 +233,6 @@ export default function App() {
     />
   );
 }
-
-const sTrust = {
-  wrap: {
-    minHeight: '100vh', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', background: '#f5f2eb', padding: 20,
-  },
-  box:     { width: '100%', maxWidth: 360 },
-  brand:   { fontFamily: 'Georgia, serif', fontSize: 28, fontWeight: 'normal', letterSpacing: '-0.02em', color: '#111', marginBottom: 4 },
-  divider: { borderTop: '1px solid #ddd6c9', margin: '20px 0' },
-  title:   { fontFamily: 'Georgia, serif', fontSize: 18, fontWeight: 'normal', color: '#111', marginBottom: 6 },
-  body:    { fontFamily: 'Georgia, serif', fontSize: 14, color: '#444', marginBottom: 24, fontStyle: 'italic' },
-  primary: {
-    fontFamily: 'Georgia, serif', fontSize: 13, width: '100%', padding: '9px 12px',
-    background: '#111', color: '#fff', border: '1px solid #111', cursor: 'pointer', marginBottom: 10, display: 'block',
-  },
-  ghost: {
-    fontFamily: 'Georgia, serif', fontSize: 12, background: 'transparent',
-    border: 'none', color: '#888', cursor: 'pointer', fontStyle: 'italic', padding: 0,
-  },
-};
 
 const sFlash = {
   banner: {
