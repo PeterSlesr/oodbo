@@ -6,7 +6,7 @@
            xsi:type="TaskPaneApp">
 
   <Id>fe416275-2b64-41ff-86a9-b65982a613fb</Id>
-  <Version>2.0.0</Version>
+  <Version>3.0.1</Version>
   <ProviderName>Paul Alan Mercogliano</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
 
