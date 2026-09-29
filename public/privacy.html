@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Privacy Policy | oodbo | forward-only distraction free writing</title>
-  <meta name="description" content="How oodbo handles your writing and personal data — what's stored, how synced files are encrypted, sharing, and your choices." />
+  <title>Privacy Policy | Forward Only | distraction-free forward-only writing</title>
+  <meta name="description" content="Forward Only runs entirely in your browser. There is no server, no account, and no database — we do not collect, receive, or store anything about you." />
+  <link rel="canonical" href="https://write.mercoogs.com/privacy" />
   <link rel="stylesheet" href="/docs.css"/>
 </head>
 <body>
 
 <nav class="site-nav">
-  <a class="brand" href="/">oodbo.io</a>
-  <a class="signin" href="/">sign in</a>
+  <a class="brand" href="/">Forward Only</a>
+  <a class="signin" href="/">open the app</a>
 </nav>
 
 <div class="scrollarea">
@@ -20,61 +21,53 @@
 <h1>Privacy Policy</h1>
 <p class="eyebrow">Effective September 2026</p>
 
-<p>oodbo is a forward-only writing tool. This policy describes what information we collect, how we use it, and how your writing is stored.</p>
+<p><strong>Short version: we do not collect anything about you, ever, for any reason.</strong> Forward Only runs entirely in your web browser. There is no Forward Only server, no Forward Only account, and no Forward Only database. The people who make Forward Only never receive, store, or have any way to see your writing or any information about you.</p>
 
 <h2>What we collect</h2>
+<p>Nothing. We run no server that receives your data, operate no analytics, set no cookies of our own, show no ads, use no trackers, and have no sign-up or account system of our own. We have no way to identify you or contact you, and we hold no record that you ever used the app.</p>
+
+<h2>Where your writing lives</h2>
+<p><strong>As a guest</strong> (not signed in), your writing exists only inside the current browser tab and is gone when you close it. It is never sent anywhere. To keep it, you export it to a file on your own device, or you sign in.</p>
+<p><strong>When you sign in with Google</strong>, your writing is saved to a private app folder inside <em>your own</em> Google Drive. It goes straight from your browser to your Google Drive — it never passes through, or is stored on, any server of ours. It is encrypted on your device before it is saved, so it does not sit in your Drive as plain, readable text.</p>
+
+<h2>How signing in works</h2>
+<p>Signing in is handled entirely by Google. When you choose to sign in, Google asks your permission and hands your browser a temporary key that lets the app read and write files in your own Google Drive. Your Google password never goes anywhere near us — there is nothing of ours for it to go to. That temporary key lives only in your browser for the session; we never see it or store it. We ask Google only for your email address (so the app can label your account and keep different accounts' work separate) and for access to your Drive.</p>
+
+<h2>Sharing</h2>
+<p>If <em>you</em> choose to publish a share link, the app saves a snapshot of that piece of writing to <em>your own</em> Google Drive and marks it "anyone with the link can view." The shared page is then served to readers from your Drive, by Google — not by us. We do not host it, copy it, store it, or see it. You can remove a share link at any time from the app or directly in your own Google Drive, which takes the page offline. Because a share link is "anyone with the link," treat anything you share as public.</p>
+
+<h2>Hosting</h2>
+<p>The app itself (the HTML and JavaScript files) is delivered by a static hosting provider, <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer">Vercel</a>. Like any web host, Vercel's infrastructure may keep standard, short-lived technical logs (such as the IP address making a request) purely as part of serving the page. That is Vercel's own infrastructure — it is not data we collect, receive, look at, or use, and there is no account or profile it is attached to.</p>
+
+<h2>Storage on your device</h2>
+<p>To work offline and remember your preferences, the app uses your browser's own local storage on your device (localStorage and IndexedDB). This never leaves your device and is never sent to us. Clearing your browser's site data for Forward Only removes it.</p>
+
+<h2>Other services</h2>
+<p>Only two third parties are involved, and only for the purposes above:</p>
 <ul>
-  <li><strong>Email address</strong> — when you sign in via magic link, Google, or Microsoft.</li>
-  <li><strong>Payment record</strong> — whether your account has been upgraded (true/false). We do not store card details; payments are handled by LemonSqueezy.</li>
-  <li><strong>OAuth tokens</strong> — access and refresh tokens for Google Drive or OneDrive, used solely to read and write your project files to your own cloud storage. They are stored in our database, encrypted at rest by our database provider, and used for no other purpose.</li>
+  <li><strong>Google</strong> — for optional sign-in and for storing your files in your own Google Drive. Governed by <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google's Privacy Policy</a>.</li>
+  <li><strong>Vercel</strong> — for hosting the app's files. Governed by <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer">Vercel's Privacy Policy</a>.</li>
 </ul>
-<p>We do not use analytics, behavioural tracking, or advertising cookies.</p>
+<p>There are no others — no analytics service, no advertising, no email provider, no payment processor, no database.</p>
 
-<h2>Your writing</h2>
-<p>Your projects are stored in your browser on your own device and, if you sign in with Google or Microsoft, in a hidden app folder in your own Google Drive or OneDrive. Project files are encrypted on your device before they sync, and — apart from a public share link you choose to create (see Shared content below) — we do not store your projects on our own servers or read their contents. Because that sync copy is encrypted before it leaves your device, the file held in your Google Drive or OneDrive is stored as ciphertext rather than readable text — it is not exposed in a form that can be mined or used to train AI models.</p>
+<h2>Your control</h2>
+<p>Your writing is always in your hands: it is in your browser or in your own Google Drive, and you can export or delete it at any time. There is no account of ours to close, because there is no account of ours in the first place.</p>
 
-<h2>How sign-in works</h2>
-<p><strong>Magic link:</strong> We send a one-time sign-in link to your email via Resend. The link expires in one hour and can only be used once.</p>
-<p><strong>Google / Microsoft:</strong> We use OAuth 2.0. Your credentials go directly to Google or Microsoft — we never see your password. We receive only your email address and the tokens needed to access your Drive app folder.</p>
-
-<h2>Cloud storage</h2>
-<p>If you sign in with Google or Microsoft, your project files (.oodbo) are saved to a hidden app-specific folder in your Google Drive or OneDrive. This folder is not visible in your Drive or OneDrive interface. Only oodbo can access it. You can export your projects at any time using the Export .oodbo option, or retrieve them via Google Takeout or Microsoft's data export tools.</p>
-
-<h2>Shared content</h2>
-<p>If you create a public share link for a project or section, a snapshot of that content is copied to and stored on our servers so it can be shown on a public page. Unlike your synced files, this snapshot is not encrypted — it has to be readable to display. Anyone with the link can view it and no sign-in is required, so treat a share link as public. Shared pages are marked &ldquo;no index&rdquo; so search engines do not list them.</p>
-<p>You can update or remove a share link at any time from Shared Links in the app. Removing it takes the public page offline immediately; we retain the deactivated record for abuse handling and audit, and it is deleted if you delete your account. Content rules for shared pages are set out in the <a href="/terms#sharing">Sharing Policy</a>.</p>
-
-<h2>Third-party services (subprocessors)</h2>
-<p>The following third parties process personal data on our behalf. We will provide at least 14 days notice before adding any new subprocessor that has access to personal data.</p>
-<ul>
-  <li><strong>Supabase</strong> — stores your email address, paid status, OAuth tokens, active sessions, auth event logs, and any content you publish via a share link. Data is hosted in the EU (Ireland). <a href="https://supabase.com/privacy" target="_blank">Supabase Privacy Policy</a>.</li>
-  <li><strong>Vercel</strong> — hosts the oodbo application and processes all requests. <a href="https://vercel.com/legal/privacy-policy" target="_blank">Vercel Privacy Policy</a>.</li>
-  <li><strong>Resend</strong> — sends magic link emails. Your email address is transmitted to Resend solely to deliver the sign-in link. <a href="https://resend.com/legal/privacy-policy" target="_blank">Resend Privacy Policy</a>.</li>
-  <li><strong>LemonSqueezy</strong> — processes payments. We receive confirmation that a purchase was completed. <a href="https://www.lemonsqueezy.com/privacy" target="_blank">LemonSqueezy Privacy Policy</a>.</li>
-  <li><strong>Google / Microsoft</strong> — OAuth sign-in and cloud storage. Governed by their respective privacy policies.</li>
-</ul>
-
-<h2>Data retention</h2>
-<p>Your account record (email, paid status) is kept for as long as your account exists. Magic link tokens are deleted after use or expiry. OAuth tokens are replaced on each sign-in. Active session records are deleted when you sign out. Auth event logs (sign-in attempts, rate-limit events) are automatically deleted after 90 days. If you would like your account deleted, email us at <a href="mailto:hello@oodbo.io">hello@oodbo.io</a> and we will remove it within 30 days.</p>
-
-<h2>Your rights</h2>
-<p>You can request a copy of the data we hold about you, ask us to correct it, or ask us to delete it. Contact us at the address below.</p>
+<h2>Children</h2>
+<p>Forward Only is a general-purpose writing tool and is not directed at children, and — since we collect nothing — we do not knowingly or unknowingly collect information from anyone, including children.</p>
 
 <h2>Changes to this policy</h2>
 <p>If this policy changes, the updated version will be posted at this URL with a revised effective date.</p>
 
 <h2>Contact</h2>
-<p>Questions about this policy: <a href="mailto:hello@oodbo.io">hello@oodbo.io</a></p>
+<p>Questions about this policy: <a href="mailto:oodbo.fwd@gmail.com">oodbo.fwd@gmail.com</a></p>
 
 </main>
 </div>
 
 <footer class="site-footer">
   <a href="/privacy">privacy</a>
-  <span class="dot">·</span><a href="/terms">terms</a>
-  <span class="dot">·</span><a href="/faq">faq</a>
-  <span class="dot">·</span><a href="/blog">blog</a>
-  <span class="dot">·</span><a href="https://marketplace.microsoft.com/en-us/product/office/WA200011123" target="_blank" rel="noopener noreferrer">MS Word</a></footer>
+  <span class="dot">·</span><a href="/terms">terms</a></footer>
 
 </body>
 </html>

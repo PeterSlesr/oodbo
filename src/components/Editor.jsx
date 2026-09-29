@@ -2762,8 +2762,6 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
       <span style={footerDotStyle}>·</span>
       <a href="/terms" target="_blank" rel="noopener noreferrer" style={footerLinkStyle}>terms</a>
       <span style={footerDotStyle}>·</span>
-      <a href="/faq" target="_blank" rel="noopener noreferrer" style={footerLinkStyle}>faq</a>
-      <span style={footerDotStyle}>·</span>
       <a href={MS_STORE_URL} target="_blank" rel="noopener noreferrer" style={footerLinkStyle}>MS Word</a>
     </>
   );
