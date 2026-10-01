@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; object-src 'none'; connect-src 'self' ipc: https://ipc.localhost https://www.oodbo.io https://*.supabase.co https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://login.microsoftonline.com https://graph.microsoft.com",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; object-src 'none'; connect-src 'self' ipc: https://ipc.localhost https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com",
       "dangerousDisableAssetCspModification": ["style-src"]
     }
   },

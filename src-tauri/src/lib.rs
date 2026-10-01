@@ -73,7 +73,7 @@ async fn await_oauth_callback(
         let response = tiny_http::Response::empty(302).with_header(
             tiny_http::Header::from_bytes(
                 &b"Location"[..],
-                &b"https://www.oodbo.io/desktop/oauth-complete"[..],
+                &b"https://write.mercoogs.com/desktop/oauth-complete"[..],
             )
             .unwrap(),
         );

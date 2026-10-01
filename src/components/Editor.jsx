@@ -24,6 +24,7 @@ import { exportDocx } from '../lib/docx.js';
 import { exportPdf }  from '../lib/pdf.js';
 import { publishShare, unpublishShare } from '../lib/share.js';
 import { getShareAccessToken } from '../lib/providerSession.js';
+import { encodeEntry, decodeEntry, hasVaultKey } from '../lib/localVault.js';
 import JSZip from 'jszip';
 import { loadGuestDraft, saveGuestDraft, clearGuestDraft } from '../lib/guestStore.js';
 import { openDB } from '../lib/sync/store.js';   // single IDB opener (v4) — see store.js
@@ -281,7 +282,9 @@ function saveProjects(ps) {
   if (_guest) { saveGuestDraft(ps); return; }
   const stamped = ps.map(({ wordAssets: _, ...p }) => _ownerEmail ? { ...p, owner: _ownerEmail } : p);
   Promise.all(stamped.map(p => saveProjectToIDB(p, { pendingSync: true }))).catch(() => {});
-  try { localStorage.setItem(PROJECTS_KEY, JSON.stringify(stamped)); } catch {}
+  // A PIN-protected account must never leave its content as plaintext in localStorage — IDB (encrypted)
+  // is its only store. loadProjects is IDB-first, so skipping this costs nothing for vault accounts.
+  try { if (!hasVaultKey()) localStorage.setItem(PROJECTS_KEY, JSON.stringify(stamped)); } catch {}
 }
 
 // Lightweight: only write the active project to IDB — used on every typing debounce.
@@ -298,6 +301,7 @@ function saveActiveProjectIDB(project) {
 function flushLocalStorage(ps) {
   if (_guest) { saveGuestDraft(ps); return; }
   try {
+    if (hasVaultKey()) return;   // vault account: never write plaintext projects to localStorage
     const stamped = ps.map(({ wordAssets: _, ...p }) => _ownerEmail ? { ...p, owner: _ownerEmail } : p);
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(stamped));
   } catch {}
@@ -325,9 +329,11 @@ async function loadProjectsFromIDB(ownerEmail) {
       req.onerror   = () => res([]);
     });
     const owner = ownerEmail || '';
-    return all
-      .filter(e => owner ? e.owner === owner : !e.owner)
-      .map(e => e.data);
+    const mine  = all.filter(e => owner ? e.owner === owner : !e.owner);
+    // PIN-protected local accounts store `data` as an encrypted blob; decodeEntry turns it back into
+    // the project (and is a pass-through for open accounts / web, where entries are plaintext).
+    const decoded = await Promise.all(mine.map(e => decodeEntry(e)));
+    return decoded.map(e => e.data).filter(Boolean);
   } catch { return []; }
 }
 
@@ -346,8 +352,9 @@ async function saveProjectToIDB(project, { pendingSync = true, lastSynced = null
       r.onerror   = () => res(null);
     });
     if (existing && (existing.owner || '') && (existing.owner || '') !== owner) return;
+    // encodeEntry moves `data` into an encrypted blob when a PIN vault is active; pass-through otherwise.
+    const entry = await encodeEntry({ id: project.id, owner, pendingSync, lastSynced, data: project });
     await new Promise((res, rej) => {
-      const entry = { id: project.id, owner, pendingSync, lastSynced, data: project };
       const tx = db.transaction('projects', 'readwrite');
       tx.objectStore('projects').put(entry);
       tx.oncomplete = res; tx.onerror = rej;
@@ -3229,7 +3236,13 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           {/* Share links — underlined text, not buttons (lower weight than "+ New section") */}
           {!isReadOnly && (
             <div data-tour="share" style={{ padding: '6px 12px 4px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
-              <button style={{ ...btn(th, 'ghost'), fontSize: 11, fontStyle: 'italic' }} onClick={() => { if (!user) { try { sessionStorage.setItem('fwd:share-on-open', '1'); } catch {} onSignIn(); return; } setShareModal(true); }}>share</button>
+              {/* Link-sharing publishes to the user's cloud (Drive), so it's for cloud accounts only —
+                  plus the web-guest case, where clicking it prompts sign-in. A local-only desktop
+                  account (user set, no provider) has no cloud to publish to, so it's hidden there.
+                  "share progress" stays for everyone — it's a locally-rendered image, no cloud. */}
+              {(!user || user?.provider) && (
+                <button style={{ ...btn(th, 'ghost'), fontSize: 11, fontStyle: 'italic' }} onClick={() => { if (!user) { try { sessionStorage.setItem('fwd:share-on-open', '1'); } catch {} onSignIn(); return; } setShareModal(true); }}>share</button>
+              )}
               <button style={{ ...btn(th, 'ghost'), fontSize: 11, fontStyle: 'italic' }} onClick={openProgressCard}>share progress</button>
             </div>
           )}

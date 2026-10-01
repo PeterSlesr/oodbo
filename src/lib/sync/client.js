@@ -11,6 +11,7 @@
 
 import { createIdbAdapter, closeDB, wipeLocalData, newSyncRecord, commitClean, isStuckDirty } from './store.js';
 import { createWebCloud } from './webCloud.js';
+import { IS_TAURI } from '../platform.js';
 import { wrapCloudWithEncryption } from '../contentCrypto.js';
 import { createEngine } from './engine.js';
 import { createForkHandler } from './fork.js';
@@ -48,7 +49,11 @@ export async function initSync({ user, getToken, hooks = {} }) {
   // before touching anything, so cross-account bleed is impossible on a shared browser.
   try {
     const prev = localStorage.getItem(OWNER_KEY);
-    if (prev && prev !== user.email) await wipeLocalData();
+    // DESKTOP hosts multiple isolated accounts on one machine (Google + local-only). Each is already
+    // owner-scoped in IDB, and a global wipe on account-switch would destroy the OTHER accounts'
+    // projects — including local accounts that have NO cloud copy to re-pull. So desktop relies on
+    // the owner filter alone and never global-wipes. Web keeps the shared-browser wipe.
+    if (!IS_TAURI && prev && prev !== user.email) await wipeLocalData();
     localStorage.setItem(OWNER_KEY, user.email);
   } catch {}
 
@@ -58,7 +63,12 @@ export async function initSync({ user, getToken, hooks = {} }) {
   // At-rest content encryption (contentCrypto.js / ENCRYPTION-DESIGN.md): wrap the cloud once at this
   // single seam. Encrypts xml into save/trash, decrypts out of load; engine/fork/canonical/migration see
   // plaintext. Legacy plaintext files pass through and convert to ciphertext on next save. `_owner` = key.
-  const rawCloud = createWebCloud({ getToken });
+  // Desktop (Tauri) talks to Drive directly with its own locally-refreshed PKCE token
+  // (createDesktopCloud sources it itself, so getToken is unused there); web injects getToken
+  // into webCloud. Both satisfy the same 7-method cloud contract the engine consumes.
+  const rawCloud = IS_TAURI
+    ? (await import('../desktopCloud.js')).createDesktopCloud()
+    : createWebCloud({ getToken });
   _cloud = wrapCloudWithEncryption(rawCloud, _owner);
 
   // The fork pair needs no bookkeeping here. It's recorded on the fork itself as `conflictOf`

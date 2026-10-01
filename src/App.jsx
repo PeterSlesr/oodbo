@@ -3,10 +3,14 @@ import { EDITOR_THEMES } from './lib/themes.js';
 import { btn } from './lib/ui.js';
 import Editor from './components/Editor.jsx';
 import DesktopOAuthComplete from './components/DesktopOAuthComplete.jsx';
+// Desktop-only login gate — lazy so its fs/account deps never enter the web bundle.
+const DesktopLogin = React.lazy(() => import('./components/DesktopLogin.jsx'));
 import Home from './components/Home.jsx';
 import ShareView from './components/ShareView.jsx';
-import { initSync, getEngine, clearLocalSession, runMigration } from './lib/sync/client.js';
-import { signIn as providerSignIn, getValidProviderAccessToken, signOut as providerSignOut } from './lib/providerSession.js';
+import { initSync, getEngine, clearLocalSession, teardownSync, runMigration } from './lib/sync/client.js';
+import { signIn as providerSignIn, getValidProviderAccessToken, signOut as providerSignOut, restoreSession } from './lib/providerSession.js';
+import { IS_TAURI } from './lib/platform.js';
+import { clearVaultKey } from './lib/localVault.js';
 import { readGuestDraftText } from './lib/guestStore.js';
 import { WRITING_QUOTES } from './lib/quotes.js';
 
@@ -49,10 +53,31 @@ export default function App() {
   const syncLastAtRef      = useRef(0);     // timestamp of last manual sync — rate-limits the sync button
 
   useEffect(() => {
-    // GIS access tokens are popup-based (they need a user gesture), so a new tab/reload can't
-    // silently restore the session — we start as guest. The "sign in" button resumes in one
-    // click, pre-selecting the last account (see handleProviderSignIn) so it skips the chooser.
-    setUser(false);
+    // WEB: GIS access tokens are popup-based (they need a user gesture), so a new tab/reload can't
+    // silently restore the session — we start as guest. The "sign in" button resumes in one click,
+    // pre-selecting the last account (see handleProviderSignIn) so it skips the chooser.
+    // DESKTOP (Tauri): we hold a real refresh token, so boot restore IS silent — resume the session
+    // with no popup. Falls back to guest if there's no stored session (or it's dead / offline).
+    let cancelled = false;
+    (async () => {
+      if (IS_TAURI) {
+        // 1) Resume a Google session silently (desktop holds a refresh token).
+        try {
+          const u = await restoreSession();
+          if (!cancelled && u?.email) { await enterSignedIn(u); return; }
+        } catch { /* no/expired Google session */ }
+        // 2) Else auto-open the last-used OPEN local account (PIN-protected ones need the gate).
+        try {
+          const { getLastUsedAccount, toLocalUser } = await import('./lib/desktopAccounts.js');
+          const acct = await getLastUsedAccount();
+          if (!cancelled && acct && !acct.protected) { await enterSignedIn(toLocalUser(acct)); return; }
+        } catch { /* no local accounts yet */ }
+        // 3) Else fall through → setUser(false) renders the desktop login gate (no guest on desktop).
+      }
+      if (!cancelled) setUser(false);
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Background sync (§6): while signed in with sync, drain the outbox on a timer and on
@@ -118,10 +143,23 @@ export default function App() {
     }
     await enterSignedIn(u);
   }
+  // Desktop: enter a local (non-Google) account. No cloud, no engine (initSync returns null for a
+  // provider-less user) — just this machine's own owner-scoped storage.
+  async function handleLocalSignIn(localUser) {
+    await enterSignedIn(localUser);
+  }
   async function handleSignOut() {
     try { await providerSignOut(); } catch (err) { console.warn('sign-out error:', err); }
     localStorage.removeItem('fwd:user');
-    await clearLocalSession();   // wipe this account's local data + drop the engine
+    clearVaultKey();   // drop any PIN-unlocked data key so the next account starts locked
+    if (IS_TAURI) {
+      // Desktop machines hold multiple isolated accounts; NEVER global-wipe on sign-out — it would
+      // destroy the other accounts' local data (incl. local-only accounts with no cloud copy to
+      // re-pull). Just drop the session + engine; the owner filter keeps accounts separate.
+      teardownSync();
+    } else {
+      await clearLocalSession();   // web: wipe this account's local data (cloud re-pulls on next sign-in)
+    }
     setUser(false);
     setView('editor');
     setOpenProjectId(null);
@@ -231,7 +269,16 @@ export default function App() {
     );
   }
 
-  // Guest — open straight into the editor (ephemeral, no login wall).
+  // Desktop has NO guest mode — show the login gate (Google, or a local account).
+  if (IS_TAURI) {
+    return (
+      <React.Suspense fallback={null}>
+        <DesktopLogin onGoogle={handleProviderSignIn} onLocal={handleLocalSignIn} />
+      </React.Suspense>
+    );
+  }
+
+  // Web — guest: open straight into the editor (ephemeral, no login wall).
   return (
     <Editor
       guest

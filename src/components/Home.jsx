@@ -8,6 +8,7 @@ import { exportDocx } from '../lib/docx.js';
 import { exportPdf }  from '../lib/pdf.js';
 import { publishShare, unpublishShare } from '../lib/share.js';
 import { getShareAccessToken } from '../lib/providerSession.js';
+import { encodeEntry, decodeEntry, hasVaultKey } from '../lib/localVault.js';
 import { openDB } from '../lib/sync/store.js';   // single IDB opener (v4) — see store.js
 import { getEngine, getSyncBadges, resolveConflict, reassignFork } from '../lib/sync/client.js';
 import ConflictDialog from './ConflictDialog.jsx';
@@ -37,9 +38,9 @@ async function readProjectsFromIDB(ownerEmail) {
       req.onsuccess = () => res(req.result ?? []);
       req.onerror   = () => res([]);
     });
-    return all
-      .filter(e => (ownerEmail ? e.owner === ownerEmail : !e.owner) && !e.trashed)
-      .map(e => e.data);
+    const mine = all.filter(e => (ownerEmail ? e.owner === ownerEmail : !e.owner) && !e.trashed);
+    const decoded = await Promise.all(mine.map(e => decodeEntry(e)));   // decrypt PIN-vault entries (pass-through otherwise)
+    return decoded.map(e => e.data).filter(Boolean);
   } catch { return []; }
 }
 
@@ -53,9 +54,9 @@ async function readTrashedFromIDB(ownerEmail) {
       req.onsuccess = () => res(req.result ?? []);
       req.onerror   = () => res([]);
     });
-    return all
-      .filter(e => (ownerEmail ? e.owner === ownerEmail : !e.owner) && e.trashed && e.data)
-      .map(e => e.data);
+    const mine = all.filter(e => (ownerEmail ? e.owner === ownerEmail : !e.owner) && e.trashed && (e.data || e.enc));
+    const decoded = await Promise.all(mine.map(e => decodeEntry(e)));
+    return decoded.map(e => e.data).filter(Boolean);
   } catch { return []; }
 }
 
@@ -78,10 +79,12 @@ async function markTrashedInIDB(id, project, ownerEmail) {
       req.onsuccess = () => res(req.result);
       req.onerror   = () => res(null);
     });
+    // existing keeps its (possibly encrypted) data as-is; the fallback carries plaintext `data`, so
+    // run it through encodeEntry (encrypts under an active PIN vault, pass-through otherwise).
     const entry = existing
       ? { ...existing, trashed: true, deletedAt: new Date().toISOString() }
-      : { id, owner: ownerEmail || '', pendingSync: false, lastSynced: null,
-          trashed: true, deletedAt: new Date().toISOString(), data: project };
+      : await encodeEntry({ id, owner: ownerEmail || '', pendingSync: false, lastSynced: null,
+          trashed: true, deletedAt: new Date().toISOString(), data: project });
     await new Promise((res, rej) => {
       const tx = db.transaction('projects', 'readwrite');
       tx.objectStore('projects').put(entry);
@@ -121,9 +124,9 @@ async function restoreInIDB(id) {
 async function writeProjectToIDB(project, ownerEmail) {
   try {
     const db = await openIDB();
+    const entry = await encodeEntry({ id: project.id, owner: ownerEmail || '', pendingSync: true, lastSynced: null,
+                      trashed: false, deletedAt: null, data: project });
     await new Promise((res, rej) => {
-      const entry = { id: project.id, owner: ownerEmail || '', pendingSync: true, lastSynced: null,
-                      trashed: false, deletedAt: null, data: project };
       const tx = db.transaction('projects', 'readwrite');
       tx.objectStore('projects').put(entry);
       tx.oncomplete = res;
@@ -134,6 +137,7 @@ async function writeProjectToIDB(project, ownerEmail) {
 
 function mergeIntoLocalStorage(projects) {
   try {
+    if (hasVaultKey()) return;   // PIN vault: never mirror plaintext projects to localStorage
     const existing = JSON.parse(localStorage.getItem('fwd:projects') || '[]');
     const merged   = [...existing];
     for (const p of projects) {
@@ -451,8 +455,10 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
       await markTrashedInIDB(p.id, p, user?.email);
     }
     try {
-      const existing = JSON.parse(localStorage.getItem('fwd:projects') || '[]');
-      localStorage.setItem('fwd:projects', JSON.stringify(existing.filter(x => x.id !== p.id)));
+      if (!hasVaultKey()) {   // vault accounts keep no plaintext projects mirror to prune
+        const existing = JSON.parse(localStorage.getItem('fwd:projects') || '[]');
+        localStorage.setItem('fwd:projects', JSON.stringify(existing.filter(x => x.id !== p.id)));
+      }
     } catch {}
     setProjects(prev => prev.filter(x => x.id !== p.id));
     setDeleteTarget(null);
@@ -479,7 +485,8 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
       );
       // Most-recently-deleted first; entries with no deletedAt sink to the bottom.
       localTrashed.sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
-      setBinProjects(localTrashed.map(e => ({
+      const decoded = await Promise.all(localTrashed.map(e => decodeEntry(e)));   // reveal PIN-vault titles/counts
+      setBinProjects(decoded.map(e => ({
         projectId: e.id,
         title:     e.data?.title || 'Untitled',
         words:     e.data ? wordCount(e.data) : 0,   // distinguishes identical titles in the bin
@@ -1058,7 +1065,10 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
       <>
         <button style={s.rowLink} onClick={() => handleCopyProject(p)}>copy</button>
         <button style={s.rowLink} onClick={() => setExportTarget(p)}>export</button>
-        <button style={{ ...s.rowLink, ...(shareState(p.id) ? { color: '#4a7c4a' } : {}) }} onClick={() => setShareTarget(p)}>{shareState(p.id) ? 'share ✓' : 'share'}</button>
+        {/* Sharing needs the user's cloud (Drive) — only cloud accounts, never local-only desktop ones. */}
+        {user?.provider && (
+          <button style={{ ...s.rowLink, ...(shareState(p.id) ? { color: '#4a7c4a' } : {}) }} onClick={() => setShareTarget(p)}>{shareState(p.id) ? 'share ✓' : 'share'}</button>
+        )}
         <button style={{ ...s.rowLink, color: th.danger }} onClick={() => setDeleteTarget(p)}>delete</button>
       </>
     );
@@ -1353,7 +1363,9 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                             <div style={s.rowMenu}>
                               <button style={s.rowMenuItem} onClick={() => { handleCopyProject(p); setMenuRow(null); }}>Copy</button>
                               <button style={s.rowMenuItem} onClick={() => { setExportTarget(p); setMenuRow(null); }}>Export</button>
-                              <button style={s.rowMenuItem} onClick={() => { setShareTarget(p); setMenuRow(null); }}>{shareState(p.id) ? 'Share ✓' : 'Share'}</button>
+                              {user?.provider && (
+                                <button style={s.rowMenuItem} onClick={() => { setShareTarget(p); setMenuRow(null); }}>{shareState(p.id) ? 'Share ✓' : 'Share'}</button>
+                              )}
                               <button style={{ ...s.rowMenuItem, color: th.danger }} onClick={() => { setDeleteTarget(p); setMenuRow(null); }}>Delete</button>
                             </div>
                           )}
