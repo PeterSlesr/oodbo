@@ -5,6 +5,21 @@
 // `danger` / `dangerText` are the destructive-action tokens. They are picked PER THEME (not one
 // shared literal): a red that reads on parchment's #f5f2eb won't hold on midnight's #0a0a0a, and
 // slate/warm already carry accents (#7b9cf5, #c8922a) a red has to sit beside.
+// CRT theme — values are CSS custom properties defined in src/crt.css, so a single
+// data-scheme change (green/amber/dark/light) recolors everything that reads from `th`
+// (btn/dialog + every surface using these tokens). `font` drives the mono UI face; `display`
+// the pixel headline face. This is the app's one theme now (parchment retired).
+export const CRT_THEME = {
+  label: 'CRT',
+  font: 'var(--fm)', display: 'var(--fd)',
+  shell: 'var(--bg)', chrome: 'var(--bg2)', chromeBorder: 'var(--bd)',
+  chromeText: 'var(--tx)', chromeMuted: 'var(--tx-dim)', chromeFaint: 'var(--tx-faint)',
+  page: 'var(--bg)', pageText: 'var(--tx)',
+  active: 'var(--bg3)', activeBorder: 'var(--ph)',
+  primaryBg: 'var(--ph)', primaryText: 'var(--bg)',
+  danger: '#c4563a', dangerText: 'var(--bg)',
+};
+
 export const EDITOR_THEMES = {
   parchment: {
     label: 'Parchment',

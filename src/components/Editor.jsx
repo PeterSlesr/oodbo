@@ -1,7 +1,22 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import FocusMode from './FocusMode.jsx';
 import { searchProject } from '../lib/search/index.js';
-import { EDITOR_THEMES } from '../lib/themes.js';
+import { CRT_THEME } from '../lib/themes.js';
+
+// CRT colour schemes offered in the header picker.
+const SCHEMES = [['green', '◉ GREEN'], ['amber', '◉ AMBER'], ['dark', '◉ DARK'], ['light', '◉ LIGHT'], ['parchment', '◉ PARCHMENT']];
+
+// Progress/OG card palettes — REAL colour values (the card is drawn on a <canvas>, which can't
+// resolve CSS vars). The card has its own theme, chosen at share time, independent of the app
+// scheme; parchment is the default (warm, external-facing).
+const CARD_PALETTES = {
+  parchment: { bg: '#f5f2eb', panel: '#ffffff', border: '#ddd6c9', text: '#1f1f1f', muted: '#888888', accent: '#111111' },
+  green:     { bg: '#080c04', panel: '#0d1408', border: '#2a3d14', text: '#b8ff4a', muted: '#8fcf4a', accent: '#b8ff4a' },
+  amber:     { bg: '#0a0700', panel: '#110900', border: '#3d2800', text: '#ffb000', muted: '#d49626', accent: '#ffb000' },
+  dark:      { bg: '#0a0a0a', panel: '#151515', border: '#333333', text: '#e6e6e6', muted: '#b4b4b4', accent: '#e6e6e6' },
+  light:     { bg: '#ffffff', panel: '#f5f4f1', border: '#d6d3cc', text: '#1a1a1a', muted: '#504c44', accent: '#141414' },
+};
+const CARD_THEMES = [['parchment', 'Parchment'], ['green', 'Green'], ['amber', 'Amber'], ['dark', 'Dark'], ['light', 'Light']];
 import { btn, dialog } from '../lib/ui.js';
 import BodyScrollLock from '../lib/BodyScrollLock.jsx';
 import GuestTour from './GuestTour.jsx';
@@ -10,7 +25,7 @@ import { exportPdf }  from '../lib/pdf.js';
 import { publishShare, unpublishShare } from '../lib/share.js';
 import { getShareAccessToken } from '../lib/providerSession.js';
 import JSZip from 'jszip';
-import { loadGuestDraft, saveGuestDraft } from '../lib/guestStore.js';
+import { loadGuestDraft, saveGuestDraft, clearGuestDraft } from '../lib/guestStore.js';
 import { openDB } from '../lib/sync/store.js';   // single IDB opener (v4) — see store.js
 import { serializeOodbo, parseOodbo } from '../lib/sync/canonical.js';   // single serializer
 import { getEngine } from '../lib/sync/client.js';
@@ -979,6 +994,9 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   const [progressSaved, setProgressSaved] = useState(false);  // "saved ✓" flash after download
   const [progressCopied, setProgressCopied] = useState('');   // '' | 'image' | 'text' — copy flash
   const [progressMeta,  setProgressMeta]  = useState(null);   // { title, words, sections, secWord, dateStr, textLine }
+  const [cardTheme,     setCardTheme]     = useState(() => {   // card's own palette (CARD_PALETTES key)
+    try { return localStorage.getItem('fwd:card-theme') || 'parchment'; } catch { return 'parchment'; }
+  });
   const progressCanvasRef = useRef(null);                     // last-generated card canvas (for blob/share)
   const [guestCopied,   setGuestCopied]   = useState(false);  // "copied ✓" flash on guest copy-all
   const [showGuestHint, setShowGuestHint] = useState(() => {  // onboarding pointer to the Forward button
@@ -989,12 +1007,14 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   });
   const [tourStep,    setTourStep]    = useState(null);  // null = tour not running; 0..n = current step
   const [tourSkipped, setTourSkipped] = useState(false);
-  const [editorTheme, setEditorTheme] = useState(
-    () => localStorage.getItem(`fwd:editor-theme:${user?.email || ''}`) || 'parchment'
-  );
+  // CRT colour scheme (green/amber/dark/light), shared app-wide via localStorage + data-scheme.
+  const [scheme, setScheme] = useState(() => {
+    try { return localStorage.getItem('fwd:crt-scheme') || 'green'; } catch { return 'green'; }
+  });
+  const pickScheme = (v) => { setScheme(v); try { localStorage.setItem('fwd:crt-scheme', v); } catch {} };
 
-  const th         = EDITOR_THEMES[editorTheme] || EDITOR_THEMES.parchment;
-  const annPalette = ANN_PALETTES[editorTheme]  || ANN_PALETTES.parchment;
+  const th         = CRT_THEME;                 // one theme; colours are CSS vars recoloured by `scheme`
+  const annPalette = ANN_PALETTES.slate;        // dark-friendly margin-note highlight colours
   const dg         = dialog(th, { mobile: isMobile });   // dialog primitive styles for this render
   const dgD        = dialog(th, { mobile: isMobile, destructive: true });   // destructive variant (danger rule)
 
@@ -1252,6 +1272,32 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   useEffect(() => {
     const ownerEmail = user?.email || null;
     loadProjects(ownerEmail).then(async ps => {
+      // Adopting a guest's in-tab draft after they signed in (see App.enterSignedIn). Import the
+      // ephemeral guest project into THIS account so the writing they did as a guest isn't lost
+      // when storage switches to the signed-in account — then continue as a normal project.
+      if (openProjectId === 'adopt-guest') {
+        const draft = loadGuestDraft()[0];
+        if (draft) {
+          const p = { ...draft, id: genId(), owner: user?.email };
+          const loaded = [...ps, p];
+          setProjects(loaded);
+          latestProjectsRef.current = loaded;
+          saveProjects(loaded);                 // IDB + localStorage, owner-stamped (durable now)
+          setActiveProjectId(p.id);
+          saveActiveId(p.id, user?.email);
+          setDbReady(true);
+          getEngine()?.markDirty(p.id, p);
+          getEngine()?.syncOne(p.id, { userInitiated: true });
+          clearGuestDraft();                    // adopted — the ephemeral copy is no longer needed
+          // If the guest was mid-share when prompted to sign in, open Share on the adopted project.
+          try {
+            if (sessionStorage.getItem('fwd:share-on-open')) { sessionStorage.removeItem('fwd:share-on-open'); setShareModal(true); }
+          } catch {}
+          return;
+        }
+        // No draft to adopt (e.g. it was empty) — fall through to a normal load.
+      }
+
       // Creating a brand-new project (navigated from homepage type picker)
       if (openProjectId === 'new') {
         const type = newProjectType || 'story';
@@ -1259,7 +1305,13 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
         const p    = { id: genId(), title: randomProjectName(ps), type, chapters: [ch], activeChapterId: ch.id };
         const loaded = [...ps, p];
         setProjects(loaded);
-        saveProjectsDirty(loaded);
+        latestProjectsRef.current = loaded;
+        // Persist to IDB (+ localStorage) IMMEDIATELY, not on the typing debounce. Otherwise a
+        // brand-new project opened straight into Forward mode has no durable home yet: its Forward
+        // crash-draft is keyed to this project id, so if the project never reached IDB before a
+        // refresh, the draft is orphaned and the writing is lost. Writing now (like the in-editor
+        // "+ New" path) means the empty project — and thus its draft — survive a refresh/sign-in.
+        saveProjects(loaded);
         setActiveProjectId(p.id);
         saveActiveId(p.id, user?.email);
         setDbReady(true);
@@ -1535,6 +1587,29 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
     return `oodbo-${slug}.png`;
   }
 
+  // Draw (or redraw) the card in the given palette and update the preview + the canvas ref used
+  // for copy/save. Pulled out so the card's theme picker can re-render without reopening.
+  function renderCard(themeKey) {
+    const p = projectRef.current || project;
+    const words    = (p.chapters || []).reduce((n, c) => n + countWords(c.content), 0);
+    const sections = (p.chapters || []).length;
+    const title    = p.title || 'Untitled';
+    const dateStr  = logDate();
+    const canvas = renderProgressCard({
+      title, words, sections, dateStr,
+      entryLabel: usesEntryLabel ? 'entry' : 'section',
+      colors: CARD_PALETTES[themeKey] || CARD_PALETTES.parchment,
+    });
+    progressCanvasRef.current = canvas;
+    setProgressUrl(canvas.toDataURL('image/png'));
+  }
+
+  function pickCardTheme(themeKey) {
+    setCardTheme(themeKey);
+    try { localStorage.setItem('fwd:card-theme', themeKey); } catch {}
+    renderCard(themeKey);
+  }
+
   function openProgressCard() {
     const p = projectRef.current || project;
     const words    = (p.chapters || []).reduce((n, c) => n + countWords(c.content), 0);
@@ -1546,17 +1621,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
     const dateStr  = logDate();
     // Plain-text companion line — carries the alt-text meaning into threads/screenreaders.
     const textLine = `"${title}"\n${plWords(words)}, ${sections} ${secWord}, ${dateStr}. A forward-only draft, written by a human at write.mercoogs.com`;
-    const canvas = renderProgressCard({
-      title, words, sections, dateStr,
-      entryLabel: usesEntryLabel ? 'entry' : 'section',
-      // Card always uses the parchment palette, independent of the editor theme.
-      colors: {
-        bg: '#f5f2eb', panel: '#fff', border: '#ddd6c9',
-        text: '#1f1f1f', muted: '#888', accent: '#111',
-      },
-    });
-    progressCanvasRef.current = canvas;
-    setProgressUrl(canvas.toDataURL('image/png'));
+    renderCard(cardTheme);   // card has its OWN theme (default parchment), independent of the app scheme
     setProgressMeta({ title, words, sections, secWord, dateStr, textLine });
     setProgressSaved(false);
     setProgressCopied('');
@@ -1855,7 +1920,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
         }
       });
     }
-  }, [expandedAnnId, editorTheme]);
+  }, [expandedAnnId, scheme]);
 
   // Wrapper: mark dirty + debounce persistence.
   // React state is already updated by the caller — this only handles persistence.
@@ -2709,7 +2774,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   ) : null;
 
   // Footer links — shared between the desktop footer bar and the mobile sidebar.
-  const footerLinkStyle = { fontFamily: 'Georgia, serif', fontSize: 10, color: th.chromeFaint, fontStyle: 'italic', textDecoration: 'none' };
+  const footerLinkStyle = { fontFamily: 'var(--fm)', fontSize: 10, color: th.chromeFaint, fontStyle: 'italic', textDecoration: 'none' };
   const footerDotStyle  = { color: th.chromeFaint, fontSize: 10 };
   const footerLinksEl = (
     <>
@@ -2727,7 +2792,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   if (!dbReady) return null;
 
   return (
-    <div style={{ ...s.shell, background: th.shell }}>
+    <div style={{ ...s.shell, background: th.shell }} data-scheme={scheme} className="crt-scanlines crt-vignette">
 
       {/* In-project find bar (Ctrl/Cmd-F). Floats over the page; cycles matches like the browser's find. */}
       {findOpen && (
@@ -2784,10 +2849,10 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
       {/* Guest banner — a guest's writing is ephemeral, so the actions here (copy / export /
           sign in) are how they keep it. In the editor, !user only ever means guest mode. */}
       {!isReadOnly && !user && guest && (
-        <div style={{ ...s.trialBanner, background: '#1f1f1f' }}>
+        <div style={{ ...s.trialBanner, background: 'var(--bg2)' }}>
           <span>Guest mode — nothing here is saved. Export it, or sign in free to keep it in your own cloud.</span>
           <span style={s.trialActions}>
-            <button style={{ ...s.trialSignIn, color: '#fff', fontStyle: 'normal' }} onClick={handleCopyGuest}>
+            <button style={{ ...s.trialSignIn, color: 'var(--tx)', fontStyle: 'normal' }} onClick={handleCopyGuest}>
               {guestCopied ? 'copied ✓' : 'copy your writing'}
             </button>
             <span style={s.trialDot}>·</span>
@@ -2808,7 +2873,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           their first exit from Forward mode (see the effects above). */}
       {!isMobile && tourPromptOpen && (
         <div style={s.tourPrompt}>
-          <p style={s.tourPromptText}>New to oodbo? Take a quick tour of the basics.</p>
+          <p style={s.tourPromptText}>New here? Take a quick tour of the basics.</p>
           <div style={s.tourPromptBtns}>
             <button style={s.tourPromptSkip} onClick={() => { setTourPromptOpen(false); setTourSkipped(true); markTourSeen(); }}>Skip</button>
             <button style={s.tourPromptGo} onClick={() => { setTourPromptOpen(false); setTourSkipped(false); setTourStep(0); }}>Take the tour</button>
@@ -2838,8 +2903,8 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
             >☰</button>
             <span style={s.spacer}/>
             {user && onGoHome
-              ? <button style={{ ...s.brand, color: th.chromeText, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={handleGoHome}>Forward Only</button>
-              : <span   style={{ ...s.brand, color: th.chromeText }}>Forward Only</span>
+              ? <button style={{ ...s.brand, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={handleGoHome}>Forward&nbsp;Only</button>
+              : <span   style={s.brand}>Forward&nbsp;Only</span>
             }
             <span style={s.spacer}/>
             {isReadOnly ? (
@@ -2868,8 +2933,8 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
         ) : (
           <>
             {user && onGoHome
-              ? <button style={{ ...s.brand, color: th.chromeText, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={handleGoHome}>Forward Only</button>
-              : <span   style={{ ...s.brand, color: th.chromeText }}>Forward Only</span>
+              ? <button style={{ ...s.brand, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={handleGoHome}>Forward&nbsp;Only</button>
+              : <span   style={s.brand}>Forward&nbsp;Only</span>
             }
             {!isReadOnly && (titleEditing ? (
               <input
@@ -2902,16 +2967,16 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
               <>
                 <div ref={themeMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
                   <button
-                    style={{ fontFamily: 'Georgia, serif', fontSize: 11, background: 'transparent', border: 'none', color: th.chromeMuted, cursor: 'pointer', padding: '4px 2px', whiteSpace: 'nowrap' }}
+                    style={{ fontFamily: 'var(--fm)', fontSize: 11, background: 'transparent', border: 'none', color: th.chromeMuted, cursor: 'pointer', padding: '4px 2px', whiteSpace: 'nowrap' }}
                     onClick={() => setThemeMenuOpen(o => !o)}
-                  >{EDITOR_THEMES[editorTheme]?.label || 'Theme'} ▾</button>
+                  >{(SCHEMES.find(x => x[0] === scheme) || SCHEMES[0])[1]} ▾</button>
                   {themeMenuOpen && (
                     <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, minWidth: 130, background: th.chrome, border: `1px solid ${th.chromeBorder}`, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', zIndex: 30, padding: '4px 0' }}>
-                      {Object.entries(EDITOR_THEMES).map(([k, v]) => (
+                      {SCHEMES.map(([k, label]) => (
                         <button key={k}
-                          style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: 'Georgia, serif', fontSize: 12, background: editorTheme === k ? th.active : 'transparent', color: th.chromeText, border: 'none', padding: '7px 14px', cursor: 'pointer' }}
-                          onClick={() => { setEditorTheme(k); localStorage.setItem(`fwd:editor-theme:${user?.email || ''}`, k); setThemeMenuOpen(false); }}
-                        >{v.label}</button>
+                          style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: 'var(--fm)', fontSize: 12, background: scheme === k ? th.active : 'transparent', color: scheme === k ? th.chromeText : th.chromeMuted, border: 'none', padding: '7px 14px', cursor: 'pointer' }}
+                          onClick={() => { pickScheme(k); setThemeMenuOpen(false); }}
+                        >{label}</button>
                       ))}
                     </div>
                   )}
@@ -2964,7 +3029,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           {/* Mobile close bar — full-width sidebar covers the header/hamburger */}
           {isMobile && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px 10px 14px', borderBottom: `1px solid ${th.chromeBorder}`, flexShrink: 0 }}>
-              <span style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeMuted, fontStyle: 'italic' }}>oodbo</span>
+              <span style={{ fontFamily: 'var(--fm)', fontSize: 12, color: th.chromeMuted, fontStyle: 'italic' }}>oodbo</span>
               <button
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 20, color: th.chromeMuted, lineHeight: 1, padding: '0 2px' }}
                 onClick={() => setSidebarOpen(false)}
@@ -2977,7 +3042,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           {user && !isReadOnly && onGoHome && (
             <div style={{ ...s.projectRow, borderBottom: `1px solid ${th.chromeBorder}` }}>
               <button
-                style={{ fontFamily: 'Georgia, serif', fontSize: 13, background: 'transparent', border: 'none', color: th.chromeText, cursor: 'pointer', padding: 0, flex: 1, textAlign: 'left' }}
+                style={{ fontFamily: 'var(--fm)', fontSize: 13, background: 'transparent', border: 'none', color: th.chromeText, cursor: 'pointer', padding: 0, flex: 1, textAlign: 'left' }}
                 onClick={handleGoHome}
               >← Projects</button>
             </div>
@@ -2998,7 +3063,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                 />
               ) : (
                 <button
-                  style={{ fontFamily: 'Georgia, serif', fontSize: 13, background: 'transparent', border: 'none', color: th.chromeMuted, cursor: 'pointer', padding: 0, textAlign: 'left', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  style={{ fontFamily: 'var(--fm)', fontSize: 13, background: 'transparent', border: 'none', color: th.chromeMuted, cursor: 'pointer', padding: 0, textAlign: 'left', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   onClick={() => setTitleEditing(true)}
                   title="Tap to rename"
                 >{project.title || 'Untitled'}</button>
@@ -3105,12 +3170,12 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                         <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 3, minWidth: 150, background: th.chrome, border: `1px solid ${th.chromeBorder}`, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', zIndex: 401, padding: '4px 0' }}>
                           <button
                             data-tour={idx === 0 ? 'new-section-plus' : undefined}
-                            style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: 'Georgia, serif', fontSize: 12, background: 'transparent', color: th.chromeText, border: 'none', padding: '8px 12px', cursor: 'pointer' }}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: 'var(--fm)', fontSize: 12, background: 'transparent', color: th.chromeText, border: 'none', padding: '8px 12px', cursor: 'pointer' }}
                             onMouseDown={e => e.stopPropagation()}
                             onClick={e => { e.stopPropagation(); addChapterAfter(ch.id); setSecMenuId(null); }}
                           >Add section after</button>
                           <button
-                            style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: 'Georgia, serif', fontSize: 12, background: 'transparent', color: th.danger, border: 'none', padding: '8px 12px', cursor: 'pointer' }}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: 'var(--fm)', fontSize: 12, background: 'transparent', color: th.danger, border: 'none', padding: '8px 12px', cursor: 'pointer' }}
                             onMouseDown={e => e.stopPropagation()}
                             onClick={e => {
                               e.stopPropagation();
@@ -3132,7 +3197,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
               style={{
                 height: 20,
                 margin: '0 8px 2px',
-                borderTop: dragOverId === '__end__' ? '2px solid #111' : '2px solid transparent',
+                borderTop: dragOverId === '__end__' ? '2px solid var(--ph)' : '2px solid transparent',
               }}
               onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverId('__end__'); }}
               onDragLeave={() => setDragOverId(null)}
@@ -3164,14 +3229,14 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           {/* Share links — underlined text, not buttons (lower weight than "+ New section") */}
           {!isReadOnly && (
             <div data-tour="share" style={{ padding: '6px 12px 4px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
-              <button style={{ ...btn(th, 'ghost'), fontSize: 11, fontStyle: 'italic' }} onClick={() => { if (!user) { onSignIn(); return; } setShareModal(true); }}>share</button>
+              <button style={{ ...btn(th, 'ghost'), fontSize: 11, fontStyle: 'italic' }} onClick={() => { if (!user) { try { sessionStorage.setItem('fwd:share-on-open', '1'); } catch {} onSignIn(); return; } setShareModal(true); }}>share</button>
               <button style={{ ...btn(th, 'ghost'), fontSize: 11, fontStyle: 'italic' }} onClick={openProgressCard}>share progress</button>
             </div>
           )}
 
           {/* Cloud sync status — hidden in readOnly mode */}
           {!isReadOnly && user?.provider && (
-            <div style={{ padding: '6px 12px 2px', fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', color: syncStatus === 'error' ? '#a03030' : syncStatus === 'offline' ? '#888' : th.chromeFaint }}>
+            <div style={{ padding: '6px 12px 2px', fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', color: syncStatus === 'error' ? '#a03030' : syncStatus === 'offline' ? 'var(--tx-dim)' : th.chromeFaint }}>
               {syncStatus === 'syncing' && 'Syncing…'}
               {syncStatus === 'synced'  && `Synced ${lastSyncedRef.current ? fmtSync(lastSyncedRef.current) : '✓'}`}
               {/* When the banner is up it has already said "offline" in the loudest voice the
@@ -3189,7 +3254,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                     <span style={{ color: '#a03030' }}>Storage disconnected.</span>
                     <button
-                      style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'normal', padding: '3px 8px', background: '#a03030', color: '#fff', border: 'none', cursor: 'pointer', alignSelf: 'flex-start' }}
+                      style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'normal', padding: '3px 8px', background: '#a03030', color: 'var(--tx)', border: 'none', cursor: 'pointer', alignSelf: 'flex-start' }}
                       onClick={async () => { await onSignOut(); onSignIn(); }}
                     >Reconnect</button>
                   </div>
@@ -3202,20 +3267,20 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
             </div>
           )}
 
-          {/* Theme selector — mobile sidebar only (desktop has it in the header). Text button + menu. */}
+          {/* Scheme selector — mobile sidebar only (desktop has it in the header). Text button + menu. */}
           {isMobile && !isReadOnly && (
             <div style={{ padding: '8px 12px 4px', borderTop: `1px solid ${th.chromeBorder}`, position: 'relative' }} ref={themeMenuRef}>
               <button
-                style={{ fontFamily: 'Georgia, serif', fontSize: 13, background: 'transparent', border: 'none', color: th.chromeText, cursor: 'pointer', padding: '4px 0' }}
+                style={{ fontFamily: 'var(--fm)', fontSize: 13, background: 'transparent', border: 'none', color: th.chromeText, cursor: 'pointer', padding: '4px 0' }}
                 onClick={() => setThemeMenuOpen(o => !o)}
-              >Theme: {EDITOR_THEMES[editorTheme]?.label || ''} ▾</button>
+              >Scheme: {(SCHEMES.find(x => x[0] === scheme) || SCHEMES[0])[1]} ▾</button>
               {themeMenuOpen && (
                 <div style={{ position: 'absolute', bottom: '100%', left: 12, marginBottom: 4, minWidth: 160, background: th.chrome, border: `1px solid ${th.chromeBorder}`, boxShadow: '0 -6px 20px rgba(0,0,0,0.18)', zIndex: 30, padding: '4px 0' }}>
-                  {Object.entries(EDITOR_THEMES).map(([k, v]) => (
+                  {SCHEMES.map(([k, label]) => (
                     <button key={k}
-                      style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: 'Georgia, serif', fontSize: 13, minHeight: 44, boxSizing: 'border-box', background: editorTheme === k ? th.active : 'transparent', color: th.chromeText, border: 'none', padding: '9px 14px', cursor: 'pointer' }}
-                      onClick={() => { setEditorTheme(k); localStorage.setItem(`fwd:editor-theme:${user?.email || ''}`, k); setThemeMenuOpen(false); }}
-                    >{v.label}</button>
+                      style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: 'var(--fm)', fontSize: 13, minHeight: 44, boxSizing: 'border-box', background: scheme === k ? th.active : 'transparent', color: scheme === k ? th.chromeText : th.chromeMuted, border: 'none', padding: '9px 14px', cursor: 'pointer' }}
+                      onClick={() => { pickScheme(k); setThemeMenuOpen(false); }}
+                    >{label}</button>
                   ))}
                 </div>
               )}
@@ -3226,11 +3291,11 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           {isReadOnly ? (
             <div style={{ ...s.sideAccountRow, borderTop: `1px solid ${th.chromeBorder}`, flexDirection: 'column', alignItems: 'flex-start', gap: 8, padding: '12px 12px 8px' }}>
               <button
-                style={{ fontFamily: 'Georgia, serif', fontSize: 13, padding: '8px 16px', background: th.primaryBg, color: th.primaryText, border: `1px solid ${th.primaryBg}`, cursor: 'pointer', width: '100%' }}
+                style={{ fontFamily: 'var(--fm)', fontSize: 13, padding: '8px 16px', background: th.primaryBg, color: th.primaryText, border: `1px solid ${th.primaryBg}`, cursor: 'pointer', width: '100%' }}
                 onClick={handleTryIt}
               >Try it free</button>
               <button
-                style={{ fontFamily: 'Georgia, serif', fontSize: 12, padding: '6px 16px', background: 'transparent', color: th.chromeMuted, border: `1px solid ${th.chromeBorder}`, cursor: 'pointer', width: '100%' }}
+                style={{ fontFamily: 'var(--fm)', fontSize: 12, padding: '6px 16px', background: 'transparent', color: th.chromeMuted, border: `1px solid ${th.chromeBorder}`, cursor: 'pointer', width: '100%' }}
                 onClick={onSignIn}
               >Sign in</button>
             </div>
@@ -3379,7 +3444,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                     onMouseDown={e => e.preventDefault()}
                     onClick={() => setLevelPickerOpen(v => !v)}
                     style={{
-                      fontFamily: 'Georgia, serif', fontSize: 9, padding: '1px 6px',
+                      fontFamily: 'var(--fm)', fontSize: 9, padding: '1px 6px',
                       background: 'transparent', border: `1px solid ${th.chromeBorder}`,
                       color: th.chromeMuted, cursor: 'pointer', letterSpacing: '0.02em',
                       userSelect: 'none',
@@ -3397,7 +3462,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                           onClick={() => { updateChapter(activeChapter.id, { level: lvl }); setLevelPickerOpen(false); }}
                           style={{
                             display: 'block', width: '100%', textAlign: 'left',
-                            fontFamily: 'Georgia, serif', fontSize: 10, padding: '2px 10px',
+                            fontFamily: 'var(--fm)', fontSize: 10, padding: '2px 10px',
                             background: activeChapter.level === lvl ? th.active : 'transparent',
                             color: th.chromeText, border: 'none', cursor: 'pointer',
                           }}
@@ -3504,7 +3569,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                     if (e.key === 'Escape') { setAddingAnn(false); setAnnInput(''); pendingSelRef.current = { start: 0, end: 0, anchorType: 'content' }; }
                   }}
                 />
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', color: th.chromeFaint, margin: '6px 0 8px' }}>Ctrl / ⌘ + Enter to save</p>
+                <p style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', color: th.chromeFaint, margin: '6px 0 8px' }}>Ctrl / ⌘ + Enter to save</p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button style={btn(th, 'ghost')} onClick={() => { setAddingAnn(false); setAnnInput(''); pendingSelRef.current = { start: 0, end: 0, anchorType: 'content' }; }}>Cancel</button>
                   <button style={btn(th, 'primary')} onClick={saveAnnotation}>Save</button>
@@ -3557,7 +3622,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                             if (e.key === 'Escape') cancelAnnotationEdit();
                           }}
                         />
-                        <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', color: th.chromeFaint, margin: '6px 0 8px' }}>Ctrl / ⌘ + Enter to save</p>
+                        <p style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', color: th.chromeFaint, margin: '6px 0 8px' }}>Ctrl / ⌘ + Enter to save</p>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button style={btn(th, 'ghost')} onClick={cancelAnnotationEdit}>Cancel</button>
                           <button style={btn(th, 'primary')} onClick={() => saveAnnotationEdit(ann.id)}>Save</button>
@@ -3577,7 +3642,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
       {/* Footer — zoom controls, hidden on mobile */}
       <style>{`
         .fwd-zoom::-webkit-slider-thumb { width:10px; height:10px; }
-        .fwd-zoom::-moz-range-thumb     { width:10px; height:10px; border:none; background:#aaa; border-radius:50%; }
+        .fwd-zoom::-moz-range-thumb     { width:10px; height:10px; border:none; background:var(--tx-dim); border-radius:50%; }
         .fwd-zoom::-webkit-slider-runnable-track { height:2px; }
         .fwd-zoom::-moz-range-track              { height:2px; }
         .fwd-editor:empty::before {
@@ -3678,7 +3743,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           if (!shareId) {
             // No share yet
             return (
-              <button style={{ fontFamily: 'Georgia, serif', fontSize: 11, padding: '5px 12px', background: th.primaryBg, color: th.primaryText, border: 'none', cursor: 'pointer', marginTop: 4 }} onClick={onShare} disabled={isLoading}>
+              <button style={{ fontFamily: 'var(--fm)', fontSize: 11, padding: '5px 12px', background: th.primaryBg, color: th.primaryText, border: 'none', cursor: 'pointer', marginTop: 4 }} onClick={onShare} disabled={isLoading}>
                 {isLoading ? 'creating…' : 'Create link'}
               </button>
             );
@@ -3691,20 +3756,20 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                 <input
                   readOnly
                   value={shareUrl(shareId)}
-                  style={{ flex: 1, fontFamily: 'Georgia, serif', fontSize: 10, border: `1px solid ${th.chromeBorder}`, background: th.active, color: th.chromeText, padding: '4px 6px', outline: 'none' }}
+                  style={{ flex: 1, fontFamily: 'var(--fm)', fontSize: 10, border: `1px solid ${th.chromeBorder}`, background: th.active, color: th.chromeText, padding: '4px 6px', outline: 'none' }}
                   onFocus={e => e.target.select()}
                 />
                 <button
-                  style={{ fontFamily: 'Georgia, serif', fontSize: 10, padding: '4px 8px', background: isCopied ? '#4a7c4a' : th.primaryBg, color: th.primaryText, border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s' }}
+                  style={{ fontFamily: 'var(--fm)', fontSize: 10, padding: '4px 8px', background: isCopied ? '#4a7c4a' : th.primaryBg, color: th.primaryText, border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s' }}
                   onClick={() => { navigator.clipboard.writeText(shareUrl(shareId)); setShareCopied(shareId); setTimeout(() => setShareCopied(c => c === shareId ? null : c), 1500); }}
                 >{isCopied ? '✓ Copied' : 'Copy'}</button>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: th.chromeMuted, cursor: 'pointer', padding: 0 }} onClick={onShare} disabled={isLoading}>
+                <button style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: th.chromeMuted, cursor: 'pointer', padding: 0 }} onClick={onShare} disabled={isLoading}>
                   {isLoading ? 'updating…' : 'Update snapshot'}
                 </button>
                 <span style={dot}>·</span>
-                <button style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: '#a03030', cursor: 'pointer', padding: 0 }} onClick={onRemove}>
+                <button style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: '#a03030', cursor: 'pointer', padding: 0 }} onClick={onRemove}>
                   Remove link
                 </button>
               </div>
@@ -3722,7 +3787,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
 
               {/* Full project */}
               <div style={{ marginBottom: 16 }}>
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, margin: '0 0 4px' }}>
+                <p style={{ fontFamily: 'var(--fm)', fontSize: 12, color: th.chromeText, margin: '0 0 4px' }}>
                   <strong style={{ fontWeight: 'normal' }}>Full project</strong>
                   <span style={{ ...dot, marginLeft: 6 }} />
                   <span style={{ fontSize: 10, color: th.chromeMuted, fontStyle: 'italic' }}>{p.title || 'Untitled'}</span>
@@ -3732,7 +3797,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
 
               {/* Current section */}
               <div style={{ borderTop: `1px solid ${th.chromeBorder}`, paddingTop: 14 }}>
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, margin: '0 0 4px' }}>
+                <p style={{ fontFamily: 'var(--fm)', fontSize: 12, color: th.chromeText, margin: '0 0 4px' }}>
                   <strong style={{ fontWeight: 'normal' }}>This section</strong>
                   <span style={{ ...dot, marginLeft: 6 }} />
                   <span style={{ fontSize: 10, color: th.chromeMuted, fontStyle: 'italic' }}>{activeChapter?.title || 'Untitled section'}</span>
@@ -3758,7 +3823,20 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           >
             <p style={dg.title}>Share progress</p>
             <div style={dg.rule} />
-            <p style={{ ...dg.body, color: th.chromeMuted, margin: '0 0 12px' }}>A card for the eye, a text line for the thread.</p>
+            <p style={{ ...dg.body, color: th.chromeMuted, margin: '0 0 10px' }}>A card for the eye, a text line for the thread.</p>
+
+            {/* Card theme — its own palette, independent of the app scheme. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {CARD_THEMES.map(([k, label]) => (
+                <button key={k}
+                  style={{ fontFamily: 'var(--fm)', fontSize: 11, letterSpacing: '0.04em', padding: '3px 10px', cursor: 'pointer',
+                           background: cardTheme === k ? th.primaryBg : 'transparent',
+                           color: cardTheme === k ? th.primaryText : th.chromeMuted,
+                           border: `1px solid ${cardTheme === k ? th.primaryBg : th.chromeBorder}` }}
+                  onClick={() => pickCardTheme(k)}
+                >{label}</button>
+              ))}
+            </div>
 
             {/* Scrollable preview — the card image can be tall; keep the action buttons pinned below. */}
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginBottom: 12 }}>
@@ -3771,7 +3849,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
               )}
 
               {/* Plain-text companion line — the accessible/thread-friendly version */}
-              <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, lineHeight: 1.5, color: th.chromeText, margin: 0, border: `1px solid ${th.chromeBorder}`, background: th.shell, padding: '10px 12px' }}>
+              <p style={{ fontFamily: 'var(--fm)', fontSize: 12, lineHeight: 1.5, color: th.chromeText, margin: 0, border: `1px solid ${th.chromeBorder}`, background: th.shell, padding: '10px 12px' }}>
                 “{progressMeta?.title}”<br />
                 {plWords(progressMeta?.words || 0)}, {progressMeta?.sections} {progressMeta?.secWord}, {progressMeta?.dateStr}. A forward-only draft, written by a human at{' '}
                 <a href="https://write.mercoogs.com" target="_blank" rel="noreferrer" style={{ color: th.primaryBg }}>write.mercoogs.com</a>
@@ -3803,15 +3881,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
           semi-transparent overlay. Do NOT gate on !focusOpen or it vanishes the moment Forward
           opens, before the fade completes. */}
       {focusJumpCover && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 790,
-          background: (() => {
-            try {
-              const t = localStorage.getItem('fwd:focus-theme') || 'dark-white';
-              return { 'dark-white': '#000', 'dark-green': '#0a0a0a', 'dark-amber': '#0a0800', 'light': '#f5f2eb' }[t] || '#000';
-            } catch { return '#000'; }
-          })(),
-        }} />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 790, background: 'var(--bg)' }} />
       )}
 
       {focusOpen && (
@@ -3873,7 +3943,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
               <p style={{ ...dg.body, color: th.chromeMuted, margin: '0 0 8px' }}>
                 A Forward session closed before it was saved — {plWords(n)} still waiting:
               </p>
-              <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, fontStyle: 'italic', lineHeight: 1.5, color: th.chromeText, border: `1px solid ${th.chromeBorder}`, background: th.shell, padding: '10px 12px', margin: '0 0 4px', maxHeight: 130, overflowY: 'auto' }}>
+              <p style={{ fontFamily: 'var(--fm)', fontSize: 12, fontStyle: 'italic', lineHeight: 1.5, color: th.chromeText, border: `1px solid ${th.chromeBorder}`, background: th.shell, padding: '10px 12px', margin: '0 0 4px', maxHeight: 130, overflowY: 'auto' }}>
                 …{preview}{draftRecovery.text.trim().length > 160 ? '…' : ''}
               </p>
               <div style={dg.actions}>
@@ -3895,22 +3965,22 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
 
 const s = {
   trialBanner: {
-    background: '#1f1f1f', color: '#aaa', fontFamily: 'Georgia, serif',
-    fontSize: 11, fontStyle: 'italic', padding: '5px 20px',
+    background: 'var(--bg2)', color: 'var(--tx-dim)', fontFamily: 'var(--fm)',
+    fontSize: 11, fontStyle: 'italic', padding: '5px 20px', borderBottom: '1px solid var(--bd)',
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0
   },
   trialActions: { display: 'flex', alignItems: 'center', gap: 8 },
-  trialBuy:    { color: '#fff', textDecoration: 'none', fontStyle: 'normal' },
-  trialDot:    { color: '#555' },
+  trialBuy:    { color: 'var(--ph)', textDecoration: 'none', fontStyle: 'normal' },
+  trialDot:    { color: 'var(--tx-faint)' },
   trialSignIn: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic',
-    background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', padding: 0
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic',
+    background: 'transparent', border: 'none', color: 'var(--ph)', cursor: 'pointer', padding: 0
   },
   guestHintWrap: { position: 'relative', display: 'inline-flex' },
   guestHint: {
     position: 'absolute', top: 'calc(100% + 10px)', right: 0, width: 220,
-    background: '#1f1f1f', color: '#e8e2d5',
-    fontFamily: 'Georgia, serif', fontSize: 12, fontStyle: 'italic', lineHeight: 1.5,
+    background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--bd)',
+    fontFamily: 'var(--fm)', fontSize: 12, fontStyle: 'italic', lineHeight: 1.5,
     padding: '10px 26px 10px 12px',
     boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
     zIndex: 60,
@@ -3918,33 +3988,34 @@ const s = {
   },
   guestHintArrow: {
     position: 'absolute', top: -5, right: 40, width: 10, height: 10,
-    background: '#1f1f1f', transform: 'rotate(45deg)',
+    background: 'var(--tx)', transform: 'rotate(45deg)',
   },
   guestHintText: { display: 'block' },
   guestHintClose: {
     position: 'absolute', top: 5, right: 8,
-    background: 'transparent', border: 'none', color: '#8a8578',
+    background: 'transparent', border: 'none', color: 'var(--tx-dim)',
     fontSize: 15, lineHeight: 1, cursor: 'pointer', padding: 0, fontStyle: 'normal',
   },
   tourPrompt: {
     position: 'fixed', right: 20, bottom: 20, width: 260, zIndex: 902,
-    background: '#1f1f1f', color: '#e8e2d5', fontFamily: 'Georgia, serif',
+    background: 'var(--tx)', color: 'var(--bg2)', fontFamily: 'var(--fm)',
     padding: '14px 16px', boxShadow: '0 10px 30px rgba(0,0,0,0.28)',
   },
   tourPromptText: { fontSize: 13, lineHeight: 1.5, margin: '0 0 12px' },
   tourPromptBtns: { display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center' },
   tourPromptSkip: {
-    fontFamily: 'Georgia, serif', fontSize: 12, fontStyle: 'italic',
-    background: 'transparent', border: 'none', color: '#8a8578', cursor: 'pointer', padding: 0,
+    fontFamily: 'var(--fm)', fontSize: 12, fontStyle: 'italic',
+    background: 'transparent', border: 'none', color: 'var(--tx-dim)', cursor: 'pointer', padding: 0,
   },
   tourPromptGo: {
-    fontFamily: 'Georgia, serif', fontSize: 12,
-    background: '#f5f2eb', border: '1px solid #f5f2eb', color: '#1f1f1f',
+    fontFamily: 'var(--fm)', fontSize: 12,
+    background: 'var(--bg)', border: '1px solid var(--bg)', color: 'var(--tx)',
     cursor: 'pointer', padding: '6px 14px',
   },
   shell: {
+    position: 'relative',
     height: '100vh', overflow: 'hidden', display: 'flex',
-    flexDirection: 'column', background: '#f5f2eb'
+    flexDirection: 'column', background: 'var(--bg)'
   },
   findNavBtn: {
     border: 'none', background: 'transparent', cursor: 'pointer',
@@ -3952,133 +4023,133 @@ const s = {
   },
   sectionWarn: {
     display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-    background: '#fbf3d8', borderBottom: '1px solid #e8dca8',
+    background: 'var(--bg2)', borderBottom: '1px solid var(--bd)',
     padding: '8px 20px', flexShrink: 0,
-    fontFamily: 'Georgia, serif', fontSize: 13, color: '#6b5d2a',
+    fontFamily: 'var(--fm)', fontSize: 13, color: '#6b5d2a',
   },
   sectionWarnText: { flex: 1, minWidth: 200, fontStyle: 'italic' },
   sectionWarnDismiss: {
-    fontFamily: 'Georgia, serif', fontSize: 12, background: 'transparent', border: 'none',
+    fontFamily: 'var(--fm)', fontSize: 12, background: 'transparent', border: 'none',
     color: '#8a7c48', cursor: 'pointer', fontStyle: 'italic', flexShrink: 0,
   },
   header: {
-    background: '#f5f2eb', borderBottom: '1px solid #ddd6c9',
+    background: 'var(--bg)', borderBottom: '1px solid var(--bd)',
     padding: '0 20px', height: 44,
     display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0
   },
   brand: {
-    fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 'normal',
-    letterSpacing: '-0.02em', color: '#111', marginRight: 4
+    fontFamily: 'var(--fd)', fontSize: 20, fontWeight: 'normal',
+    letterSpacing: '0.14em', color: 'var(--ph)', textShadow: 'var(--glow)', marginRight: 4
   },
   projTitle: {
-    fontFamily: 'Georgia, serif', fontSize: 13, color: '#888',
+    fontFamily: 'var(--fm)', fontSize: 13, color: 'var(--tx-dim)',
     fontStyle: 'italic', cursor: 'text'
   },
   projTitleInput: {
-    fontFamily: 'Georgia, serif', fontSize: 13, color: '#555', fontStyle: 'italic',
-    background: 'transparent', border: 'none', borderBottom: '1px solid #ddd6c9',
+    fontFamily: 'var(--fm)', fontSize: 13, color: 'var(--tx-dim)', fontStyle: 'italic',
+    background: 'transparent', border: 'none', borderBottom: '1px solid var(--bd)',
     outline: 'none', padding: '0 0 1px 0', width: 160
   },
   spacer:    { flex: 1 },
-  wordCount: { fontFamily: 'Georgia, serif', fontSize: 11, color: '#aaa' },
-  savedDot:  { fontFamily: 'Georgia, serif', fontSize: 11, color: '#aaa' },
+  wordCount: { fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)' },
+  savedDot:  { fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)' },
   headerThemeSelect: {
-    fontFamily: 'Georgia, serif', fontSize: 10,
+    fontFamily: 'var(--fm)', fontSize: 10,
     padding: '3px 6px', cursor: 'pointer', outline: 'none',
   },
   focusBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 12, padding: '5px 14px',
-    background: '#111', color: '#fff', border: '1px solid #111', cursor: 'pointer'
+    fontFamily: 'var(--fm)', fontSize: 12, padding: '5px 14px',
+    background: 'var(--ph)', color: 'var(--bg)', border: '1px solid var(--ph)', cursor: 'pointer'
   },
   notesBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 12, padding: '5px 14px',
-    background: 'transparent', color: '#999', border: '1px solid #ddd6c9', cursor: 'pointer'
+    fontFamily: 'var(--fm)', fontSize: 12, padding: '5px 14px',
+    background: 'transparent', color: 'var(--tx-faint)', border: '1px solid var(--bd)', cursor: 'pointer'
   },
-  notesBtnActive: { background: '#111', color: '#fff', border: '1px solid #111' },
-  greeting: { fontFamily: 'Georgia, serif', fontSize: 11, color: '#aaa', fontStyle: 'italic' },
+  notesBtnActive: { background: 'var(--ph)', color: 'var(--bg)', border: '1px solid var(--ph)' },
+  greeting: { fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)', fontStyle: 'italic' },
   signOut: {
-    fontFamily: 'Georgia, serif', fontSize: 12, background: 'transparent',
-    border: '1px solid #ddd6c9', color: '#999', cursor: 'pointer',
+    fontFamily: 'var(--fm)', fontSize: 12, background: 'transparent',
+    border: '1px solid var(--bd)', color: 'var(--tx-faint)', cursor: 'pointer',
     fontStyle: 'italic', padding: '5px 14px'
   },
   body:    { flex: 1, display: 'flex', overflow: 'hidden' },
   sidebar: {
     width: 200, // default — overridden inline on desktop by sidebarWidth state
-    borderRight: '1px solid #ddd6c9', background: '#f5f2eb',
+    borderRight: '1px solid var(--bd)', background: 'var(--bg)',
     display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
   },
   projectRow: {
     display: 'flex', alignItems: 'center', gap: 4, padding: '8px 8px 8px 10px',
   },
   projectSelect: {
-    fontFamily: 'Georgia, serif', fontSize: 11, flex: 1, minWidth: 0,
+    fontFamily: 'var(--fm)', fontSize: 11, flex: 1, minWidth: 0,
     border: '1px solid', padding: '3px 4px', cursor: 'pointer', outline: 'none',
     textOverflow: 'ellipsis', overflow: 'hidden',
   },
   projectIconBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 14, lineHeight: 1,
+    fontFamily: 'var(--fm)', fontSize: 14, lineHeight: 1,
     background: 'transparent', border: 'none', cursor: 'pointer',
     padding: '2px 4px', flexShrink: 0,
   },
   sideHead: {
-    fontFamily: 'Georgia, serif', fontSize: 9, textTransform: 'uppercase',
-    letterSpacing: '0.1em', color: '#bbb', padding: '14px 14px 6px'
+    fontFamily: 'var(--fm)', fontSize: 9, textTransform: 'uppercase',
+    letterSpacing: '0.1em', color: 'var(--tx-faint)', padding: '14px 14px 6px'
   },
   chapterItem: {
     padding: '8px 14px 8px 8px', cursor: 'pointer', flexShrink: 0,
     display: 'flex', alignItems: 'baseline', gap: 6, borderLeft: '2px solid transparent'
   },
-  dragHandle: { cursor: 'grab', color: '#ccc', fontSize: 11, flexShrink: 0, userSelect: 'none', lineHeight: 1 },
+  dragHandle: { cursor: 'grab', color: 'var(--tx-dim)', fontSize: 11, flexShrink: 0, userSelect: 'none', lineHeight: 1 },
   chapterDeleteBtn: {
     background: 'transparent', border: 'none', cursor: 'pointer',
     fontSize: 14, lineHeight: 1, padding: '0 0 0 2px', flexShrink: 0,
   },
   copyBtn: {
     background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
-    color: '#ccc', flexShrink: 0, lineHeight: 1, userSelect: 'none',
+    color: 'var(--tx-dim)', flexShrink: 0, lineHeight: 1, userSelect: 'none',
     display: 'flex', alignItems: 'center'
   },
-  chapterActive:   { borderLeft: '2px solid #111', background: '#ede9e1' },
-  chapterDragOver: { borderTop: '2px solid #111' },
-  chapterTitle: { fontFamily: 'Georgia, serif', fontSize: 12, color: '#1f1f1f', flex: 1 },
-  chapterWc:    { fontFamily: 'Georgia, serif', fontSize: 11, color: '#999' },
+  chapterActive:   { borderLeft: '2px solid var(--ph)', background: 'var(--bg3)' },
+  chapterDragOver: { borderTop: '2px solid var(--ph)' },
+  chapterTitle: { fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx)', flex: 1 },
+  chapterWc:    { fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)' },
   addChapter: {
-    fontFamily: 'Georgia, serif', fontSize: 11, color: '#aaa', background: 'transparent',
+    fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)', background: 'transparent',
     border: 'none', cursor: 'pointer', padding: '10px 14px', textAlign: 'left', fontStyle: 'italic'
   },
   typePickerAnchor: {
     position: 'fixed', top: 33, left: 200, zIndex: 900,
   },
   typePickerModal: {
-    background: '#f5f2eb', borderTop: '3px solid #111',
-    padding: '24px 24px 18px', width: 280, fontFamily: 'Georgia, serif',
+    background: 'var(--bg)', borderTop: '3px solid var(--ph)',
+    padding: '24px 24px 18px', width: 280, fontFamily: 'var(--fm)',
     boxShadow: '2px 4px 16px rgba(0,0,0,0.18)',
   },
   typePickerBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 12, width: '100%',
-    padding: '9px 12px', background: '#111', color: '#fff',
-    border: '1px solid #111', cursor: 'pointer', marginBottom: 8,
+    fontFamily: 'var(--fm)', fontSize: 12, width: '100%',
+    padding: '9px 12px', background: 'var(--ph)', color: 'var(--bg)',
+    border: '1px solid var(--ph)', cursor: 'pointer', marginBottom: 8,
     textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2,
   },
   typePickerLabel: { fontStyle: 'normal' },
-  typePickerDesc:  { fontSize: 10, color: '#aaa', fontStyle: 'italic' },
+  typePickerDesc:  { fontSize: 10, color: 'var(--tx-faint)', fontStyle: 'italic' },
   sideFileActions: {
     display: 'flex', alignItems: 'center', gap: 8,
     padding: '10px 14px 14px',
   },
   sideFileBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic',
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic',
     background: 'transparent', border: 'none', cursor: 'pointer',
     padding: 0
   },
-  main: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' },
+  main: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg2)' },
   mainScroll: {
     flex: 1, overflowY: 'auto', display: 'flex', justifyContent: 'center',
-    alignItems: 'flex-start', padding: '0 24px', cursor: 'text', background: '#f5f2eb'
+    alignItems: 'flex-start', padding: '0 24px', cursor: 'text', background: 'var(--bg)'
   },
   page: {
     width: '100%', maxWidth: 680, display: 'flex', flexDirection: 'column',
-    cursor: 'auto', background: '#fff',
+    cursor: 'auto', background: 'var(--bg2)',
     paddingLeft: '2.5cm', paddingRight: '2.5cm',
     paddingTop: '2.5cm', paddingBottom: '5cm', boxSizing: 'border-box'
   },
@@ -4087,101 +4158,101 @@ const s = {
     borderRadius: 1, cursor: 'pointer', transition: 'opacity 0.15s, background 0.15s'
   },
   chapterTitleInput: {
-    fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 'normal', color: '#111',
+    fontFamily: 'var(--fm)', fontSize: 22, fontWeight: 'normal', color: 'var(--tx)',
     background: 'transparent', border: 'none', padding: '0 0 12px 0',
     outline: 'none', letterSpacing: '-0.01em', width: '100%'
   },
   editor: {
-    fontFamily: 'Georgia, serif', fontSize: 15, lineHeight: 1.8, color: '#1f1f1f',
+    fontFamily: 'var(--fm)', fontSize: 15, lineHeight: 1.8, color: 'var(--tx)',
     background: 'transparent', padding: '16px 0 0 0',
     outline: 'none', minHeight: 400, width: '100%', boxSizing: 'border-box',
     whiteSpace: 'pre-wrap', wordBreak: 'break-word', cursor: 'text'
   },
   editorFooter: {
-    borderTop: '1px solid #eee', height: 30, padding: '0 14px',
+    borderTop: '1px solid var(--bg3)', height: 30, padding: '0 14px',
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4, flexShrink: 0
   },
   footerLinks:   { display: 'flex', alignItems: 'center', gap: 8 },
   zoomControls:  { display: 'flex', alignItems: 'center', gap: 4 },
   zoomBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 14, background: 'transparent', border: 'none',
-    color: '#999', cursor: 'pointer', padding: '0 3px', lineHeight: 1, userSelect: 'none'
+    fontFamily: 'var(--fm)', fontSize: 14, background: 'transparent', border: 'none',
+    color: 'var(--tx-faint)', cursor: 'pointer', padding: '0 3px', lineHeight: 1, userSelect: 'none'
   },
-  zoomSlider: { width: 72, cursor: 'pointer', accentColor: '#aaa', opacity: 0.7 },
+  zoomSlider: { width: 72, cursor: 'pointer', accentColor: 'var(--tx-faint)', opacity: 0.7 },
   zoomLabel: {
-    fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', color: '#bbb',
+    fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', color: 'var(--tx-faint)',
     cursor: 'pointer', marginLeft: 4, userSelect: 'none', width: 30, textAlign: 'left'
   },
 
   // ── Annotations panel ──────────────────────────────────────────
   annPanel: {
-    width: 220, borderLeft: '1px solid #ddd6c9', background: '#f5f2eb',
+    width: 220, borderLeft: '1px solid var(--bd)', background: 'var(--bg)',
     display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto'
   },
   annPanelHead: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '12px 14px 8px', borderBottom: '1px solid #ddd6c9', flexShrink: 0
+    padding: '12px 14px 8px', borderBottom: '1px solid var(--bd)', flexShrink: 0
   },
   annPanelLabel: {
-    fontFamily: 'Georgia, serif', fontSize: 12, color: '#888',
+    fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx-dim)',
   },
   annAddBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic',
-    background: 'transparent', border: 'none', color: '#999', cursor: 'pointer', padding: 0
+    fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic',
+    background: 'transparent', border: 'none', color: 'var(--tx-faint)', cursor: 'pointer', padding: 0
   },
-  annForm: { padding: '10px 14px', borderBottom: '1px solid #ddd6c9', flexShrink: 0 },
+  annForm: { padding: '10px 14px', borderBottom: '1px solid var(--bd)', flexShrink: 0 },
   annFormAnchor: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic',
-    color: '#888', marginBottom: 8, lineHeight: 1.5
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic',
+    color: 'var(--tx-dim)', marginBottom: 8, lineHeight: 1.5
   },
   annFormInput: {
-    fontFamily: 'Georgia, serif', fontSize: 12, width: '100%', minHeight: 80,
-    border: '1px solid #ddd6c9', background: '#fff', padding: '6px 8px',
+    fontFamily: 'var(--fm)', fontSize: 12, width: '100%', minHeight: 80,
+    border: '1px solid var(--bd)', background: 'var(--bg2)', padding: '6px 8px',
     resize: 'none', outline: 'none', overflow: 'hidden',
-    boxSizing: 'border-box', lineHeight: 1.6, color: '#1f1f1f'
+    boxSizing: 'border-box', lineHeight: 1.6, color: 'var(--tx)'
   },
   annFormActions: { display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' },
   annFormHint: {
-    marginLeft: 'auto', fontFamily: 'Georgia, serif', fontSize: 10,
-    fontStyle: 'italic', color: '#bbb',
+    marginLeft: 'auto', fontFamily: 'var(--fm)', fontSize: 10,
+    fontStyle: 'italic', color: 'var(--tx-faint)',
   },
   annSaveBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 11, padding: '4px 12px',
-    background: '#111', color: '#fff', border: '1px solid #111', cursor: 'pointer'
+    fontFamily: 'var(--fm)', fontSize: 11, padding: '4px 12px',
+    background: 'var(--ph)', color: 'var(--bg)', border: '1px solid var(--ph)', cursor: 'pointer'
   },
   annCancelBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 11, padding: '4px 10px',
-    background: 'transparent', color: '#999', border: '1px solid #ddd6c9', cursor: 'pointer'
+    fontFamily: 'var(--fm)', fontSize: 11, padding: '4px 10px',
+    background: 'transparent', color: 'var(--tx-faint)', border: '1px solid var(--bd)', cursor: 'pointer'
   },
   annList:  { flex: 1, overflowY: 'auto' },
   annEmpty: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic',
-    color: '#bbb', padding: '16px 14px', lineHeight: 1.6
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic',
+    color: 'var(--tx-faint)', padding: '16px 14px', lineHeight: 1.6
   },
-  annItem:         { borderBottom: '1px solid #ede9e1', cursor: 'pointer' },
-  annItemExpanded: { background: '#ede9e1' },
+  annItem:         { borderBottom: '1px solid var(--bg3)', cursor: 'pointer' },
+  annItemExpanded: { background: 'var(--bg3)' },
   annItemRow: { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px 8px 12px' },
   annBubble:  { width: 9, height: 9, borderRadius: 2, flexShrink: 0, display: 'inline-block' },
   annItemPreview: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic', color: '#666',
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic', color: 'var(--tx-dim)',
     flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
   },
   annDeleteBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 14, background: 'transparent', border: 'none',
-    color: '#ccc', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0
+    fontFamily: 'var(--fm)', fontSize: 14, background: 'transparent', border: 'none',
+    color: 'var(--tx-dim)', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0
   },
   annExpanded: { padding: '0 12px 10px' },
   annNoteText: {
-    fontFamily: 'Georgia, serif', fontSize: 12, color: '#444',
+    fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx-dim)',
     lineHeight: 1.6, margin: '0 0 8px', whiteSpace: 'pre-wrap'
   },
   annNotePlaceholder: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic',
-    color: '#bbb', margin: '0 0 8px'
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic',
+    color: 'var(--tx-faint)', margin: '0 0 8px'
   },
   annEditBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic',
-    background: 'transparent', border: 'none', color: '#999',
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic',
+    background: 'transparent', border: 'none', color: 'var(--tx-faint)',
     cursor: 'pointer', padding: 0
   },
 
@@ -4191,7 +4262,7 @@ const s = {
     flexShrink: 0,
   },
   sideThemeSelect: {
-    fontFamily: 'Georgia, serif', fontSize: 11,
+    fontFamily: 'var(--fm)', fontSize: 11,
     width: '100%', border: '1px solid', padding: '4px 6px',
     cursor: 'pointer', outline: 'none',
   },
@@ -4200,12 +4271,12 @@ const s = {
     padding: '6px 14px 14px', flexShrink: 0,
   },
   sideAccountName: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic',
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic',
   },
 
   // ── Mobile ────────────────────────────────────────────────────
   hamburgerBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 18, lineHeight: 1,
+    fontFamily: 'var(--fm)', fontSize: 18, lineHeight: 1,
     background: 'transparent', border: 'none', cursor: 'pointer',
     padding: '0 4px', flexShrink: 0,
   },
@@ -4222,9 +4293,9 @@ const s = {
     margin: '8px auto 4px', flexShrink: 0,
   },
   annCloseBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 18, lineHeight: 1,
+    fontFamily: 'var(--fm)', fontSize: 18, lineHeight: 1,
     background: 'transparent', border: 'none', cursor: 'pointer',
-    padding: '0 0 0 8px', color: '#999', flexShrink: 0,
+    padding: '0 0 0 8px', color: 'var(--tx-faint)', flexShrink: 0,
   },
 
   // ── Delete project modal ───────────────────────────────────────
@@ -4233,31 +4304,31 @@ const s = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 900,
   },
   deleteModal: {
-    background: '#f5f2eb', borderTop: '3px solid #c0392b',
+    background: 'var(--bg)', borderTop: '3px solid #c0392b',
     padding: '24px 24px 18px', width: 300, maxWidth: 'calc(100vw - 32px)',
-    boxSizing: 'border-box', fontFamily: 'Georgia, serif',
+    boxSizing: 'border-box', fontFamily: 'var(--fm)',
   },
-  deleteTitle: { fontSize: 15, color: '#111', marginBottom: 4 },
-  deleteSub:   { fontSize: 11, color: '#888', fontStyle: 'italic', marginBottom: 16 },
+  deleteTitle: { fontSize: 15, color: 'var(--tx)', marginBottom: 4 },
+  deleteSub:   { fontSize: 11, color: 'var(--tx-dim)', fontStyle: 'italic', marginBottom: 16 },
   deleteBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 12, width: '100%',
-    padding: '9px 12px', background: '#111', color: '#fff',
-    border: '1px solid #111', cursor: 'pointer', marginBottom: 8, textAlign: 'left',
+    fontFamily: 'var(--fm)', fontSize: 12, width: '100%',
+    padding: '9px 12px', background: 'var(--ph)', color: 'var(--bg)',
+    border: '1px solid var(--ph)', cursor: 'pointer', marginBottom: 8, textAlign: 'left',
   },
   deleteBtnDanger: { background: '#c0392b', border: '1px solid #c0392b' },
   getOodboModal: {
-    background: '#f5f2eb', borderTop: '3px solid #111',
+    background: 'var(--bg)', borderTop: '3px solid var(--ph)',
     padding: '24px 24px 18px', width: 320, maxWidth: 'calc(100vw - 32px)',
-    boxSizing: 'border-box', fontFamily: 'Georgia, serif',
+    boxSizing: 'border-box', fontFamily: 'var(--fm)',
   },
   getOodboSecondary: {
-    fontFamily: 'Georgia, serif', fontSize: 12, width: '100%',
-    padding: '9px 12px', background: 'transparent', color: '#111',
-    border: '1px solid #ddd6c9', cursor: 'pointer', marginBottom: 8, textAlign: 'left',
+    fontFamily: 'var(--fm)', fontSize: 12, width: '100%',
+    padding: '9px 12px', background: 'transparent', color: 'var(--tx)',
+    border: '1px solid var(--bd)', cursor: 'pointer', marginBottom: 8, textAlign: 'left',
   },
   deleteGhost: {
-    fontFamily: 'Georgia, serif', fontSize: 11, background: 'transparent',
-    border: 'none', color: '#888', cursor: 'pointer', fontStyle: 'italic', padding: 0,
+    fontFamily: 'var(--fm)', fontSize: 11, background: 'transparent',
+    border: 'none', color: 'var(--tx-dim)', cursor: 'pointer', fontStyle: 'italic', padding: 0,
   },
 
   // ── Annotation hint modal ──────────────────────────────────────
@@ -4269,13 +4340,13 @@ const s = {
     flexShrink: 0,
   },
   annHintMsg: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 12,
     lineHeight: 1.5,
     margin: 0,
   },
   annHintOk: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 11,
     padding: '4px 14px',
     cursor: 'pointer',

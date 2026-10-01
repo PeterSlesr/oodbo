@@ -15,12 +15,8 @@ function countWords(text) {
   return (text || '').trim() ? (text || '').trim().split(/\s+/).filter(Boolean).length : 0;
 }
 
-const FOCUS_THEMES = [
-  ['dark-white', 'Dark — White'],
-  ['dark-green', 'Dark — Green'],
-  ['dark-amber', 'Dark — Amber'],
-  ['light',      'Light'],
-];
+// The app's colour schemes (shared with the header picker via localStorage 'fwd:crt-scheme').
+const SCHEMES = [['green', '◉ GREEN'], ['amber', '◉ AMBER'], ['dark', '◉ DARK'], ['light', '◉ LIGHT'], ['parchment', '◉ PARCHMENT']];
 
 function esc(s) {
   return s
@@ -46,7 +42,11 @@ export default function FocusMode({ chapter, onPublish, onCancel, journalMode, a
   // Report live text up so the Editor can persist a crash-recovery draft (it owns the
   // debounce). Empty text is a no-op there; a resumed session re-saves itself, harmlessly.
   useEffect(() => { onDraftChange?.(text); }, [text]);
-  const [theme, setTheme]             = useState(() => localStorage.getItem('fwd:focus-theme') || 'dark-white');
+  // Colour scheme — shared app-wide. Applied as data-scheme on the overlay so the writer can
+  // switch it mid-session and the whole surface (via CSS vars) recolours instantly.
+  const [scheme, setScheme]           = useState(() => {
+    try { return localStorage.getItem('fwd:crt-scheme') || 'green'; } catch { return 'green'; }
+  });
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef(null);
   const [showPublish, setShowPublish] = useState(false);
@@ -95,9 +95,9 @@ export default function FocusMode({ chapter, onPublish, onCancel, journalMode, a
     }
   }
 
-  useEffect(() => { renderText(text); }, [text, theme, prefix]);
+  useEffect(() => { renderText(text); }, [text, prefix]);
 
-  // Close the theme menu on outside click.
+  // Close the scheme menu on outside click.
   useEffect(() => {
     if (!themeMenuOpen) return;
     const onDown = (e) => { if (themeMenuRef.current && !themeMenuRef.current.contains(e.target)) setThemeMenuOpen(false); };
@@ -216,19 +216,14 @@ export default function FocusMode({ chapter, onPublish, onCancel, journalMode, a
     onPublish(text, startNew);
   }
 
-  const themes = {
-    'dark-white': { bg: '#000', hidden: '#3a3a3a', visible: '#fff',  cursor: '#fff',    content: '#000' },
-    'dark-green': { bg: '#0a0a0a', hidden: '#1a3d1a', visible: '#33ff33', cursor: '#33ff33', content: '#0a0a0a' },
-    'dark-amber': { bg: '#0a0800', hidden: '#3d2800', visible: '#ffb000', cursor: '#ffb000', content: '#0a0800' },
-    'light':      { bg: '#f5f2eb', hidden: '#d8d8d8', visible: '#111',  cursor: '#111',    content: '#fff' },
-  };
-  const t = themes[theme] || themes['dark-white'];
-
-  const wc       = countWords(text);
+  const wc = countWords(text);
+  const curSchemeLabel = (SCHEMES.find(([k]) => k === scheme) || SCHEMES[0])[1];
 
   return (
     <div
-      style={{ ...s.overlay, background: t.bg }}
+      data-scheme={scheme}
+      className="crt-scanlines crt-vignette"
+      style={s.overlay}
       onClick={e => {
         if (!['BUTTON','INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) {
           focusInput();
@@ -239,49 +234,45 @@ export default function FocusMode({ chapter, onPublish, onCancel, journalMode, a
 
       {/* Toolbar */}
       <div style={s.toolbar}>
+        <span style={s.brand}>FORWARD&nbsp;ONLY</span>
         {!isMobile && <span style={s.spacer} />}
         <div ref={themeMenuRef} style={{ position: 'relative' }}>
-          <button
-            style={{ ...s.themeSelect, whiteSpace: 'nowrap' }}
-            onClick={() => setThemeMenuOpen(o => !o)}
-          >{(FOCUS_THEMES.find(([k]) => k === theme) || [])[1] || 'Theme'} ▾</button>
+          <button className="crt-tog" onClick={() => setThemeMenuOpen(o => !o)}>{curSchemeLabel}&nbsp;▾</button>
           {themeMenuOpen && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, minWidth: 150, background: '#1f1f1f', border: '1px solid #444', boxShadow: '0 6px 20px rgba(0,0,0,0.4)', zIndex: 30, padding: '4px 0' }}>
-              {FOCUS_THEMES.map(([k, label]) => (
-                <button key={k}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', fontFamily: 'Georgia, serif', fontSize: 12, background: theme === k ? '#333' : 'transparent', color: '#ccc', border: 'none', padding: '7px 14px', cursor: 'pointer' }}
-                  onClick={() => { setTheme(k); localStorage.setItem('fwd:focus-theme', k); setThemeMenuOpen(false); focusInput(); }}
+            <div className="crt-menu" role="listbox">
+              {SCHEMES.map(([k, label]) => (
+                <button key={k} role="option" aria-selected={scheme === k}
+                  className={`crt-menu-item${scheme === k ? ' on' : ''}`}
+                  onClick={() => { setScheme(k); try { localStorage.setItem('fwd:crt-scheme', k); } catch {} setThemeMenuOpen(false); focusInput(); }}
                 >{label}</button>
               ))}
             </div>
           )}
         </div>
         {!isMobile && <span style={s.wcBadge}>{wc} words</span>}
-        <button style={s.cancelBtn} onClick={handleCancel}>{journalMode ? 'Burn' : 'Cancel'}</button>
-        <button style={s.publishBtn} onClick={handlePublishClick}>
-          Edit Mode
-        </button>
+        <button className="crt-tog" onClick={handleCancel}>{journalMode ? 'BURN' : 'CANCEL'}</button>
+        <button style={s.publishBtn} onClick={handlePublishClick}>EDIT&nbsp;MODE</button>
       </div>
 
       {/* Paper */}
       <div style={s.paperWrap}>
         <style>{`
-          .fh { color: ${t.hidden}; }
-          .fv { color: ${t.visible}; }
+          .fh { color: var(--tx-faint); }
+          .fv { color: var(--tx); text-shadow: var(--glow); }
           .fc {
             display: inline-block;
-            width: ${theme === 'light' ? '2px' : '0.55em'};
+            width: 0.55em;
             height: 1em;
-            background: ${t.cursor};
+            background: var(--ph);
             vertical-align: text-bottom;
-            margin-left: ${theme === 'light' ? '1px' : '0'};
+            box-shadow: 0 0 6px var(--ph-dim);
             animation: fwd-blink 1s step-start infinite;
           }
           @keyframes fwd-blink   { 0%,100%{opacity:1} 50%{opacity:0} }
           @keyframes fwd-fadein  { from{opacity:0} to{opacity:1} }
           .fwd-paper::-webkit-scrollbar { display: none; }
           .fwd-paper { scrollbar-width: none; }
-          .fwd-modal button:focus { outline: 2px solid #888; outline-offset: 2px; }
+          .fwd-modal button:focus { outline: 1px solid var(--ph); outline-offset: 2px; }
         `}</style>
         <div
           ref={sizerRef}
@@ -290,7 +281,7 @@ export default function FocusMode({ chapter, onPublish, onCancel, journalMode, a
             ...(boxSize && !isMobile ? { width: boxSize.w, height: boxSize.h } : {}),
           }}
         >
-          <div style={{ ...s.paper, borderColor: theme === 'light' ? 'transparent' : t.visible, background: t.content }}>
+          <div style={s.paper}>
             <div className="fwd-paper" style={s.paperScroll}>
               {/* Visual display — renders the sliding word window */}
               <div ref={displayRef} style={s.display} />
@@ -315,7 +306,7 @@ export default function FocusMode({ chapter, onPublish, onCancel, journalMode, a
             <div
               style={{
                 ...s.resizeHandle,
-                backgroundImage: `repeating-linear-gradient(-45deg, ${t.visible} 0, ${t.visible} 1px, transparent 0, transparent 4px)`,
+                backgroundImage: `repeating-linear-gradient(-45deg, var(--ph) 0, var(--ph) 1px, transparent 0, transparent 4px)`,
               }}
               onPointerDown={handleResizeStart}
             />
@@ -329,12 +320,12 @@ export default function FocusMode({ chapter, onPublish, onCancel, journalMode, a
       {introOpen && (
         <div style={s.introLayer}>
           <div style={s.introInner}>
-            <p style={{ ...s.introTitle, color: t.visible }}>Forward only</p>
-            <p style={{ ...s.introBody, color: t.visible }}>
+            <p style={s.introTitle}>FORWARD ONLY</p>
+            <p style={s.introBody}>
               You can’t edit or delete what you write here, you can only keep going.
               Let it be rough; fix it later. That’s the whole idea.
             </p>
-            <p style={{ ...s.introBody, color: t.visible, opacity: 0.6, marginTop: 18 }}>
+            <p style={{ ...s.introBody, opacity: 0.6, marginTop: 18 }}>
               Click “Edit Mode” or press Ctrl / ⌘ + Enter when you’re done.
             </p>
           </div>
@@ -343,7 +334,7 @@ export default function FocusMode({ chapter, onPublish, onCancel, journalMode, a
 
       {/* Status bar */}
       <div style={s.statusbar}>
-        <span style={{ color: '#666' }}>ctrl+enter · edit &nbsp;·&nbsp; esc · cancel</span>
+        <span style={{ color: 'var(--tx-faint)' }}>CTRL+ENTER · EDIT &nbsp;·&nbsp; ESC · CANCEL</span>
       </div>
 
       {/* Publish modal */}
@@ -392,6 +383,9 @@ const s = {
     zIndex: 800,
     display: 'flex',
     flexDirection: 'column',
+    background: 'var(--bg)',
+    color: 'var(--tx)',
+    fontFamily: 'var(--fm)',
     animation: 'fwd-fadein 280ms ease forwards',
     // Keep the toolbar out from under the notch and the status bar above the home
     // indicator. env() is 0 on non-notched devices, so desktop is untouched.
@@ -401,13 +395,18 @@ const s = {
     paddingRight: 'env(safe-area-inset-right)',
   },
   toolbar: {
-    background: '#1f1f1f',
-    padding: '0 20px',
+    background: 'var(--bg2)',
+    borderBottom: '1px solid var(--bd)',
+    padding: '0 16px',
     height: 44,
     display: 'flex',
     alignItems: 'center',
     gap: 12,
     flexShrink: 0,
+  },
+  brand: {
+    fontFamily: 'var(--fd)', fontSize: 18, letterSpacing: '0.15em',
+    color: 'var(--ph)', textShadow: 'var(--glow)', whiteSpace: 'nowrap',
   },
   spacer: { flex: 1 },
   introLayer: {
@@ -417,54 +416,35 @@ const s = {
     pointerEvents: 'none',                    // never intercept the writing surface
     padding: '24px',
     animation: 'fwd-fadein 400ms ease forwards',
+    zIndex: 62,
   },
   introInner: {
-    maxWidth: 440, textAlign: 'center',
+    maxWidth: 460, textAlign: 'center',
   },
   introTitle: {
-    fontFamily: 'Georgia, serif', fontSize: 15, fontStyle: 'italic',
-    letterSpacing: '0.02em', margin: '0 0 14px',
+    fontFamily: 'var(--fd)', fontSize: 30, letterSpacing: '0.14em',
+    color: 'var(--ph)', textShadow: 'var(--glow)', margin: '0 0 16px',
   },
   introBody: {
-    fontFamily: 'Georgia, serif', fontSize: 17, lineHeight: 1.6, margin: 0,
+    fontFamily: 'var(--fm)', fontSize: 15, lineHeight: 1.7, margin: 0, color: 'var(--tx-dim)',
   },
   wcBadge: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 11,
-    fontStyle: 'italic',
-    color: '#aaa',
+    color: 'var(--tx-dim)',
+    letterSpacing: '0.05em',
   },
   publishBtn: {
-    fontFamily: 'Georgia, serif',
-    fontSize: 12,
-    padding: '5px 14px',
+    fontFamily: 'var(--fm)',
+    fontSize: 11,
+    letterSpacing: '0.06em',
+    padding: '4px 12px',
     minWidth: 92,
     textAlign: 'center',
-    background: '#fff',
-    color: '#1f1f1f',
-    border: '1px solid #fff',
-    cursor: 'pointer'
-  },
-  cancelBtn: {
-    fontFamily: 'Georgia, serif',
-    fontSize: 12,
-    padding: '5px 14px',
-    minWidth: 74,
-    textAlign: 'center',
-    background: 'transparent',
-    color: '#ccc',
-    border: '1px solid #444',
-    cursor: 'pointer'
-  },
-  themeSelect: {
-    fontFamily: 'Georgia, serif',
-    fontSize: 10,
-    background: '#1f1f1f',
-    border: '1px solid #444',
-    color: '#aaa',
-    padding: '3px 6px',
+    background: 'var(--ph)',
+    color: 'var(--bg)',
+    border: '1px solid var(--ph)',
     cursor: 'pointer',
-    outline: 'none'
   },
   paperWrap: {
     flex: 1,
@@ -474,8 +454,8 @@ const s = {
   },
   sizerBox: {
     position: 'relative',
-    width: 'min(595px, calc(100vw - 24px))',
-    height: 420,
+    width: 'min(640px, calc(100vw - 24px))',
+    height: 440,
     minWidth: 220,
     minHeight: 160,
     flexShrink: 0,
@@ -489,13 +469,14 @@ const s = {
     height: 16,
     cursor: 'nwse-resize',
     zIndex: 10,
-    opacity: 0.4,
+    opacity: 0.5,
     clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
   },
   paper: {
     width: '100%',
     height: '100%',
-    border: '1px solid',
+    border: '1px solid var(--bd)',
+    background: 'var(--bg2)',
     position: 'relative',
     overflow: 'hidden',
     boxSizing: 'border-box',
@@ -504,12 +485,12 @@ const s = {
     position: 'absolute',
     inset: 0,
     overflowY: 'auto',
-    padding: '20px 24px'
+    padding: '22px 26px'
   },
   display: {
-    fontFamily: "'Courier New', Courier, monospace",
-    fontSize: 17,
-    lineHeight: 1.85,
+    fontFamily: 'var(--fm)',
+    fontSize: 16,
+    lineHeight: 1.95,
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
     outline: 'none',
@@ -533,14 +514,15 @@ const s = {
     caretColor: 'transparent',
   },
   statusbar: {
-    background: '#1f1f1f',
+    background: 'var(--bg2)',
+    borderTop: '1px solid var(--bd)',
     padding: '4px 14px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 10,
-    fontStyle: 'italic',
+    letterSpacing: '0.06em',
     flexShrink: 0
   },
   modalOverlay: {
@@ -549,49 +531,51 @@ const s = {
     background: 'rgba(0,0,0,0.6)',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    zIndex: 70,
   },
   modal: {
-    background: '#f5f2eb',
-    borderTop: '3px solid #111',
-    padding: '24px 24px 18px',
-    width: 320,
-    fontFamily: 'Georgia, serif'
+    background: 'var(--bg2)',
+    border: '1px solid var(--bd)',
+    borderTop: '2px solid var(--ph)',
+    padding: '22px 24px 18px',
+    width: 340,
+    fontFamily: 'var(--fm)'
   },
   modalTitle: {
-    fontSize: 15,
-    color: '#111',
-    marginBottom: 4
+    fontFamily: 'var(--fd)', fontSize: 22, letterSpacing: '0.04em',
+    color: 'var(--ph)', textShadow: 'var(--glow)', margin: '0 0 4px'
   },
   modalSub: {
     fontSize: 11,
-    color: '#888',
+    color: 'var(--tx-dim)',
     fontStyle: 'italic',
     marginBottom: 16
   },
   modalBtn: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 12,
     width: '100%',
     padding: '9px 12px',
-    background: '#111',
-    color: '#fff',
-    border: '1px solid #111',
+    background: 'var(--ph)',
+    color: 'var(--bg)',
+    border: '1px solid var(--ph)',
     cursor: 'pointer',
     marginBottom: 8,
     textAlign: 'left'
   },
   modalBtnSecondary: {
     background: 'transparent',
-    color: '#111',
+    color: 'var(--tx)',
+    border: '1px solid var(--bd)',
     marginBottom: 12
   },
   modalGhost: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 11,
     background: 'transparent',
     border: 'none',
-    color: '#888',
+    color: 'var(--tx-dim)',
     cursor: 'pointer',
     fontStyle: 'italic',
     padding: 0

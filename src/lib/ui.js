@@ -17,7 +17,7 @@
 //                    text link is not a tap target).
 export function btn(th, variant = 'primary', { mobile = false, outlined = false } = {}) {
   const base = {
-    fontFamily: 'Georgia, serif',
+    fontFamily: th.font || 'Georgia, serif',
     fontSize: 12,
     padding: '8px 16px',
     cursor: 'pointer',
@@ -82,10 +82,10 @@ export function dialog(th, { mobile = false, destructive = false } = {}) {
       maxHeight: mobile ? '92vh' : '82vh',
       display: 'flex', flexDirection: 'column',
       boxShadow: '0 10px 40px rgba(0,0,0,0.30)',
-      fontFamily: 'Georgia, serif', boxSizing: 'border-box',
+      fontFamily: th.font || 'Georgia, serif', boxSizing: 'border-box',
     },
     title: {
-      fontFamily: 'Georgia, serif', fontSize: 18, fontWeight: 'normal',
+      fontFamily: th.font || 'Georgia, serif', fontSize: 18, fontWeight: 'normal',
       letterSpacing: '-0.01em', color: th.chromeText, margin: 0,
     },
     rule: {
@@ -93,11 +93,11 @@ export function dialog(th, { mobile = false, destructive = false } = {}) {
       margin: '12px 0 16px',
     },
     label: {
-      fontFamily: 'Georgia, serif', fontSize: 10, textTransform: 'uppercase',
+      fontFamily: th.font || 'Georgia, serif', fontSize: 10, textTransform: 'uppercase',
       letterSpacing: '0.14em', color: th.chromeMuted,
     },
     body: {
-      fontFamily: 'Georgia, serif', fontSize: 14, lineHeight: 1.6, color: th.chromeText,
+      fontFamily: th.font || 'Georgia, serif', fontSize: 14, lineHeight: 1.6, color: th.chromeText,
     },
     actions: {
       display: 'flex',

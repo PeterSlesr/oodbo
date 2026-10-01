@@ -7,6 +7,8 @@ import Home from './components/Home.jsx';
 import ShareView from './components/ShareView.jsx';
 import { initSync, getEngine, clearLocalSession, runMigration } from './lib/sync/client.js';
 import { signIn as providerSignIn, getValidProviderAccessToken, signOut as providerSignOut } from './lib/providerSession.js';
+import { readGuestDraftText } from './lib/guestStore.js';
+import { WRITING_QUOTES } from './lib/quotes.js';
 
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -37,9 +39,10 @@ export default function App() {
   // One writing quote per syncing event, picked at random. Keyed on initialSyncing
   // so each time the sync screen appears it re-rolls a fresh quote.
   const syncQuote = useMemo(
-    () => SYNC_QUOTES[Math.floor(Math.random() * SYNC_QUOTES.length)],
+    () => WRITING_QUOTES[Math.floor(Math.random() * WRITING_QUOTES.length)],
     [initialSyncing],
   );
+  const scheme = (() => { try { return localStorage.getItem('fwd:crt-scheme') || 'green'; } catch { return 'green'; } })();
   const [homeFlash,       setHomeFlash]       = useState('');       // brief message shown on home after being sent back
   const [syncReconnect,   setSyncReconnect]   = useState(false);    // §10: provider auth lost — show "reconnect"
   const [syncTick,        setSyncTick]        = useState(0);        // bumped when the engine changes a record; re-derives badges
@@ -80,6 +83,11 @@ export default function App() {
     setUser(me);
     try { localStorage.setItem('fwd:user', JSON.stringify(me)); } catch {}
     setSyncReconnect(false);   // (re)authed — clear any "storage disconnected" banner
+    // A guest who signs in should KEEP the writing they did as a guest — otherwise switching to
+    // the account's own storage would orphan the in-tab draft (this bit the "share while guest"
+    // flow). If the guest draft has actual content, route into the editor's adopt path (below),
+    // which imports it into this account; otherwise land on home as usual.
+    const adoptGuest = !!readGuestDraftText();
     setView('home');
     setInitialSyncing(true);
     await initSync({
@@ -94,6 +102,7 @@ export default function App() {
     await runMigration();
     await getEngine()?.sweepAll();
     setInitialSyncing(false);
+    if (adoptGuest) { setOpenProjectId('adopt-guest'); setNewProjectType(null); setView('editor'); }
   }
 
   async function handleProviderSignIn() {
@@ -171,9 +180,9 @@ export default function App() {
   // Pulling cloud projects on new device — show a simple loading screen
   if (initialSyncing) {
     return (
-      <div style={sLoading.page}>
+      <div style={sLoading.page} data-scheme={scheme} className="crt-scanlines crt-vignette">
         <div style={sLoading.header}>
-          <span style={sLoading.logo}>oodbo</span>
+          <span style={sLoading.logo}>FORWARD&nbsp;ONLY</span>
           <p style={sLoading.msg}>Syncing your projects…</p>
         </div>
         <blockquote style={sLoading.quote}>
@@ -253,42 +262,21 @@ const sFlash = {
   },
 };
 
-// Writing quotes shown on the sync screen (same set as the Word add-in taskpane).
-const SYNC_QUOTES = [
-  { text: "The first draft is just you telling yourself the story.", attr: "— Terry Pratchett" },
-  { text: "You can always edit a bad page. You can't edit a blank page.", attr: "— Jodi Picoult" },
-  { text: "Start writing, no matter what. The water does not flow until the faucet is turned on.", attr: "— Louis L'Amour" },
-  { text: "Don't get it right, get it written.", attr: "— James Thurber" },
-  { text: "A word after a word after a word is power.", attr: "— Margaret Atwood" },
-  { text: "The scariest moment is always just before you start.", attr: "— Stephen King" },
-  { text: "I write to find out what I'm thinking.", attr: "— Joan Didion" },
-  { text: "There is nothing to writing. All you do is sit down at a typewriter and bleed.", attr: "— Red Smith" },
-  { text: "Writing is thinking on paper.", attr: "— William Zinsser" },
-  { text: "The writer who waits for ideal conditions under which to work will die without putting a word on paper.", attr: "— E.B. White" },
-  { text: "One day I will find the right words, and they will be simple.", attr: "— Kerouac" },
-  { text: "Fill your paper with the breathings of your heart.", attr: "— Wordsworth" },
-  { text: "Almost all good writing begins with terrible first efforts.", attr: "— Anne Lamott" },
-  { text: "Quantity produces quality. If you only write a few things, you're doomed.", attr: "— Ray Bradbury" },
-  { text: "The secret of getting ahead is getting started.", attr: "— Mark Twain (probably not, but he gets credit anyway)" },
-  { text: "Do not hoard what seems good for a later place in the book. Give it now.", attr: "— Annie Dillard" },
-  { text: "If you wait for inspiration to write, you're not a writer, you're a waiter.", attr: "— Dan Poynter" },
-  { text: "Write. Rewrite. When not writing or rewriting, read.", attr: "— Larry L. King" },
-  { text: "You have to write the book that wants to be written.", attr: "— Madeleine L'Engle" },
-];
-
 const sLoading = {
   page: {
+    position: 'relative',
     minHeight: '100vh',
-    background: '#f5f2eb',
+    background: 'var(--bg)',
+    color: 'var(--tx)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     padding: '0 28px',
     boxSizing: 'border-box',
   },
-  // Logo + "Syncing…" cluster — lifted above centre so the quote reads as central.
+  // Wordmark + "Syncing…" cluster — lifted above centre so the quote reads as central.
   header: {
     display: 'flex',
     flexDirection: 'column',
@@ -297,33 +285,35 @@ const sLoading = {
     marginBottom: 'clamp(36px, 8vh, 72px)',
   },
   logo: {
-    fontSize: 22,
-    color: '#888',
-    fontStyle: 'italic',
-    letterSpacing: '-0.02em',
+    fontFamily: 'var(--fd)',
+    fontSize: 28,
+    letterSpacing: '0.14em',
+    color: 'var(--ph)',
+    textShadow: 'var(--glow)',
   },
   msg: {
-    fontSize: 13,
-    color: '#aaa',
-    fontStyle: 'italic',
+    fontSize: 12,
+    color: 'var(--tx-dim)',
+    letterSpacing: '0.05em',
     margin: 0,
   },
   quote: {
     margin: 0,
-    maxWidth: 540,
+    maxWidth: 560,
     textAlign: 'center',
   },
   quoteText: {
     margin: 0,
-    fontSize: 'clamp(18px, 4.4vw, 23px)',
-    lineHeight: 1.5,
-    fontStyle: 'italic',
-    color: '#6f675b',
+    fontFamily: 'var(--fm)',
+    fontSize: 'clamp(17px, 4.2vw, 22px)',
+    lineHeight: 1.6,
+    color: 'var(--tx)',
+    textShadow: 'var(--glow)',
   },
   quoteAttr: {
-    marginTop: 16,
-    fontSize: 14,
-    color: '#a89f8e',
-    fontStyle: 'normal',
+    marginTop: 18,
+    fontSize: 13,
+    letterSpacing: '0.05em',
+    color: 'var(--tx-faint)',
   },
 };

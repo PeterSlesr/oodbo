@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { searchAll } from '../lib/search/index.js';
-import { EDITOR_THEMES } from '../lib/themes.js';
+import { CRT_THEME } from '../lib/themes.js';
 import { btn, dialog } from '../lib/ui.js';
 import BodyScrollLock from '../lib/BodyScrollLock.jsx';
 import JSZip from 'jszip';
@@ -990,11 +990,27 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
     return bestChapter ? { bestProject, bestChapter } : null;
   }, [projects]);
 
-  // Home is a light editorial page, independent of the editor theme — so are its dialogs,
-  // which is why they stay parchment rather than adopting midnight/warm from the editor.
-  const th  = EDITOR_THEMES.parchment;
+  // CRT theme — all colours come from CSS custom properties (src/crt.css), recoloured live by
+  // the scheme picker (green/amber/dark/light) via data-scheme on the page container below.
+  const th  = CRT_THEME;
   const dg  = dialog(th, { mobile: isMobile });
   const dgD = dialog(th, { mobile: isMobile, destructive: true });   // destructive dialogs (danger rule)
+
+  // Colour scheme (shared with ShareView + the rest of the app) — persisted per browser.
+  const [scheme, setScheme] = useState(() => {
+    try { return localStorage.getItem('fwd:crt-scheme') || 'green'; } catch { return 'green'; }
+  });
+  const pickScheme = (v) => { setScheme(v); try { localStorage.setItem('fwd:crt-scheme', v); } catch {} };
+  const [schemeMenuOpen, setSchemeMenuOpen] = useState(false);
+  const schemeMenuRef = useRef(null);
+  useEffect(() => {
+    if (!schemeMenuOpen) return;
+    const onDown = (e) => { if (schemeMenuRef.current && !schemeMenuRef.current.contains(e.target)) setSchemeMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [schemeMenuOpen]);
+  const SCHEMES = [['green', '◉ GREEN'], ['amber', '◉ AMBER'], ['dark', '◉ DARK'], ['light', '◉ LIGHT'], ['parchment', '◉ PARCHMENT']];
+  const curSchemeLabel = (SCHEMES.find((x) => x[0] === scheme) || SCHEMES[0])[1];
 
   // ── Homepage search ──────────────────────────────────────────────────────────
   // Search runs only when the user submits (Enter or the magnifying-glass icon) — NOT per
@@ -1076,7 +1092,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   }
 
   return (
-    <div style={s.page}>
+    <div style={s.page} data-scheme={scheme} className="crt-scanlines crt-vignette">
 
       {/* Idle limbo: the "still here?" checkpoint, then the full-screen animation. A deliberate
           action anywhere wakes it (handled by the idle effect's window listeners). */}
@@ -1101,8 +1117,21 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
 
       {/* Header */}
       <header style={s.header}>
-        <span style={s.logo}>Forward Only</span>
+        <span style={s.logo}>FORWARD&nbsp;ONLY</span>
         <span style={s.flex1} />
+        <span style={{ position: 'relative' }} ref={schemeMenuRef}>
+          <button className="crt-tog" aria-haspopup="listbox" aria-expanded={schemeMenuOpen}
+                  onClick={() => setSchemeMenuOpen((o) => !o)}>{curSchemeLabel}&nbsp;▾</button>
+          {schemeMenuOpen && (
+            <div className="crt-menu" role="listbox">
+              {SCHEMES.map(([val, label]) => (
+                <button key={val} role="option" aria-selected={scheme === val}
+                        className={`crt-menu-item${scheme === val ? ' on' : ''}`}
+                        onClick={() => { pickScheme(val); setSchemeMenuOpen(false); }}>{label}</button>
+              ))}
+            </div>
+          )}
+        </span>
         <span style={s.userEmail}>{user?.name || user?.email?.split('@')[0]}</span>
         <button style={s.ghostBtn} onClick={onSignOut}>sign out</button>
       </header>
@@ -1150,8 +1179,8 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                 there's no Enter key in reach. Submits; not a text target. */}
             <button style={s.searchGo} onClick={runSearch} title="Search" aria-label="Search">
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="6.4" cy="6.4" r="4.6" stroke="#6b6455" strokeWidth="1.3" />
-                <line x1="9.9" y1="9.9" x2="13.4" y2="13.4" stroke="#6b6455" strokeWidth="1.3" strokeLinecap="round" />
+                <circle cx="6.4" cy="6.4" r="4.6" stroke="var(--tx-dim)" strokeWidth="1.3" />
+                <line x1="9.9" y1="9.9" x2="13.4" y2="13.4" stroke="var(--tx-dim)" strokeWidth="1.3" strokeLinecap="round" />
               </svg>
             </button>
             {(query.trim() || searching) && (
@@ -1174,8 +1203,8 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                 {SORT_OPTIONS.map(o => (
                   <button
                     key={o.value}
-                    style={{ ...s.sortMenuItem, ...(o.value === sort ? { color: '#111', fontStyle: 'normal' } : {}) }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#f0ede6'; }}
+                    style={{ ...s.sortMenuItem, ...(o.value === sort ? { color: 'var(--tx)', fontStyle: 'normal' } : {}) }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bd)'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                     onClick={() => { handleSort(o.value); setSortMenuOpen(false); }}
                   >{o.label}</button>
@@ -1292,7 +1321,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                   style={isMobile ? s.rowMobile : s.row}
                   onClick={() => openFromList(p)}
                   onMouseEnter={e => {
-                    e.currentTarget.style.background = '#ede9e1';
+                    e.currentTarget.style.background = 'var(--bg3)';
                     const a = e.currentTarget.querySelector('[data-actions]');
                     if (a) { a.style.opacity = '1'; a.style.pointerEvents = 'auto'; }
                   }}
@@ -1424,10 +1453,10 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                 const busy   = sharesBusy === sh.id;
                 return (
                   <div key={sh.id} style={{ padding: '12px 0', borderBottom: `1px solid ${th.chromeBorder}` }}>
-                    <p style={{ fontFamily: 'Georgia, serif', fontSize: 13, color: th.chromeText, margin: '0 0 2px' }}>
+                    <p style={{ fontFamily: 'var(--fm)', fontSize: 13, color: th.chromeText, margin: '0 0 2px' }}>
                       {sh.title || 'Untitled'}
                     </p>
-                    <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, color: th.chromeMuted, fontStyle: 'italic', margin: '0 0 8px' }}>
+                    <p style={{ fontFamily: 'var(--fm)', fontSize: 10, color: th.chromeMuted, fontStyle: 'italic', margin: '0 0 8px' }}>
                       {scope}{proj ? ` · in ${proj.title || 'Untitled'}` : ''}{status === 'active' && sh.updated_at ? ` · snapshot ${formatSyncAgo(sh.updated_at)}` : ''}
                     </p>
 
@@ -1435,26 +1464,26 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                       <>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                           <input readOnly value={shareUrl(sh.id)}
-                            style={{ flex: 1, minWidth: 0, fontFamily: 'Georgia, serif', fontSize: 10, border: `1px solid ${th.chromeBorder}`, background: '#fff', color: '#333', padding: '4px 6px', outline: 'none' }}
+                            style={{ flex: 1, minWidth: 0, fontFamily: 'var(--fm)', fontSize: 10, border: `1px solid ${th.chromeBorder}`, background: 'var(--bg2)', color: 'var(--tx)', padding: '4px 6px', outline: 'none' }}
                             onFocus={e => e.target.select()} />
                           <button
-                            style={{ fontFamily: 'Georgia, serif', fontSize: 10, padding: '4px 8px', background: sharesCopied === sh.id ? '#4a7c4a' : '#111', color: '#f5f2eb', border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s' }}
+                            style={{ fontFamily: 'var(--fm)', fontSize: 10, padding: '4px 8px', background: sharesCopied === sh.id ? '#4a7c4a' : 'var(--tx)', color: 'var(--bg)', border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s' }}
                             onClick={() => copyShareLink(sh)}
                           >{sharesCopied === sh.id ? '✓ Copied' : 'Copy'}</button>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <button
-                            style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: canUpd ? '#666' : '#bbb', cursor: canUpd ? 'pointer' : 'default', padding: 0 }}
+                            style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: canUpd ? 'var(--tx-dim)' : 'var(--tx-faint)', cursor: canUpd ? 'pointer' : 'default', padding: 0 }}
                             onClick={() => canUpd && updateShareSnapshot(sh)} disabled={!canUpd || busy}
                           >{busy ? 'updating…' : 'Update snapshot'}</button>
-                          <span style={{ color: '#aaa', fontSize: 10 }}>·</span>
+                          <span style={{ color: 'var(--tx-faint)', fontSize: 10 }}>·</span>
                           <button
-                            style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: '#a03030', cursor: 'pointer', padding: 0 }}
+                            style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: '#a03030', cursor: 'pointer', padding: 0 }}
                             onClick={() => removeShareLink(sh)} disabled={busy}
                           >Remove link</button>
                         </div>
                         {!canUpd && (
-                          <p style={{ fontFamily: 'Georgia, serif', fontSize: 9, color: '#bbb', fontStyle: 'italic', margin: '4px 0 0' }}>
+                          <p style={{ fontFamily: 'var(--fm)', fontSize: 9, color: 'var(--tx-faint)', fontStyle: 'italic', margin: '4px 0 0' }}>
                             snapshot can't be refreshed here — the original isn't on this device
                           </p>
                         )}
@@ -1462,12 +1491,12 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                     )}
 
                     {status === 'reported' && (
-                      <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', color: '#666', margin: 0 }}>
+                      <p style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', color: 'var(--tx-dim)', margin: 0 }}>
                         under review — link hidden pending moderation
                       </p>
                     )}
                     {status === 'blocked' && (
-                      <p style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', color: '#a03030', margin: 0 }}>
+                      <p style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', color: '#a03030', margin: 0 }}>
                         permanently removed — sharing policy violation
                       </p>
                     )}
@@ -1565,39 +1594,39 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                     <>
                       {!shareId && (
                         <button
-                          style={{ fontFamily: 'Georgia, serif', fontSize: 11, padding: '5px 12px', background: '#111', color: '#f5f2eb', border: 'none', cursor: 'pointer', marginTop: 4, marginBottom: 16 }}
+                          style={{ fontFamily: 'var(--fm)', fontSize: 11, padding: '5px 12px', background: 'var(--ph)', color: 'var(--bg)', border: 'none', cursor: 'pointer', marginTop: 4, marginBottom: 16 }}
                           onClick={() => handleShare(shareTarget)} disabled={shareLoading}
                         >{shareLoading ? 'creating…' : 'Create link'}</button>
                       )}
                       {status === 'reported' && (
                         <div style={{ margin: '6px 0 16px' }}>
-                          <p style={{ fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic', color: '#666', margin: '0 0 2px' }}>under review — link hidden pending moderation</p>
-                          <p style={{ fontFamily: 'Georgia, serif', fontSize: 11, color: '#aaa', margin: 0, fontStyle: 'italic' }}>no actions available while under review</p>
+                          <p style={{ fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic', color: 'var(--tx-dim)', margin: '0 0 2px' }}>under review — link hidden pending moderation</p>
+                          <p style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)', margin: 0, fontStyle: 'italic' }}>no actions available while under review</p>
                         </div>
                       )}
                       {status === 'blocked' && (
                         <div style={{ margin: '6px 0 16px' }}>
-                          <p style={{ fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic', color: '#a03030', margin: '0 0 2px' }}>permanently removed — sharing policy violation</p>
-                          <p style={{ fontFamily: 'Georgia, serif', fontSize: 11, color: '#aaa', margin: 0, fontStyle: 'italic' }}>this project can no longer be shared</p>
+                          <p style={{ fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic', color: '#a03030', margin: '0 0 2px' }}>permanently removed — sharing policy violation</p>
+                          <p style={{ fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)', margin: 0, fontStyle: 'italic' }}>this project can no longer be shared</p>
                         </div>
                       )}
                       {status === 'active' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <input readOnly value={shareUrl(shareId)}
-                              style={{ flex: 1, fontFamily: 'Georgia, serif', fontSize: 10, border: '1px solid #ddd6c9', background: '#fff', color: '#333', padding: '4px 6px', outline: 'none' }}
+                              style={{ flex: 1, fontFamily: 'var(--fm)', fontSize: 10, border: '1px solid var(--bd)', background: 'var(--bg2)', color: 'var(--tx)', padding: '4px 6px', outline: 'none' }}
                               onFocus={e => e.target.select()} />
                             <button
-                              style={{ fontFamily: 'Georgia, serif', fontSize: 10, padding: '4px 8px', background: shareCopied ? '#4a7c4a' : '#111', color: '#f5f2eb', border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s' }}
+                              style={{ fontFamily: 'var(--fm)', fontSize: 10, padding: '4px 8px', background: shareCopied ? '#4a7c4a' : 'var(--tx)', color: 'var(--bg)', border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s' }}
                               onClick={() => { navigator.clipboard.writeText(shareUrl(shareId)); setShareCopied(true); setTimeout(() => setShareCopied(false), 1500); }}
                             >{shareCopied ? '✓ Copied' : 'Copy'}</button>
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <button style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', padding: 0 }} onClick={() => handleShare(shareTarget)} disabled={shareLoading}>
+                            <button style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: 'var(--tx-dim)', cursor: 'pointer', padding: 0 }} onClick={() => handleShare(shareTarget)} disabled={shareLoading}>
                               {shareLoading ? 'updating…' : 'Update snapshot'}
                             </button>
-                            <span style={{ color: '#aaa', fontSize: 10, margin: '0 2px' }}>·</span>
-                            <button style={{ fontFamily: 'Georgia, serif', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: '#a03030', cursor: 'pointer', padding: 0 }} onClick={() => handleUnshare(shareTarget)}>
+                            <span style={{ color: 'var(--tx-faint)', fontSize: 10, margin: '0 2px' }}>·</span>
+                            <button style={{ fontFamily: 'var(--fm)', fontSize: 10, fontStyle: 'italic', background: 'transparent', border: 'none', color: '#a03030', cursor: 'pointer', padding: 0 }} onClick={() => handleUnshare(shareTarget)}>
                               Remove link
                             </button>
                           </div>
@@ -1626,11 +1655,11 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
             </p>
             {activeSharesFor(deleteTarget.id).length > 0 && (
               <div style={{ borderTop: `1px solid ${th.chromeBorder}`, padding: '12px 0 4px', marginBottom: 12 }}>
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, margin: '0 0 10px' }}>
+                <p style={{ fontFamily: 'var(--fm)', fontSize: 12, color: th.chromeText, margin: '0 0 10px' }}>
                   This project has an active share link.
                 </p>
                 {[['keep', 'Keep link active'], ['deactivate', 'Deactivate link']].map(([val, label]) => (
-                  <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Georgia, serif', fontSize: 12, color: th.chromeText, cursor: 'pointer', marginBottom: 6 }}>
+                  <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--fm)', fontSize: 12, color: th.chromeText, cursor: 'pointer', marginBottom: 6 }}>
                     <input type="radio" name="deleteLinkAction" value={val} checked={deleteLinkAction === val} onChange={() => setDeleteLinkAction(val)} />
                     {label}
                   </label>
@@ -1683,7 +1712,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
                 onChange={e => setBinQuery(e.target.value)}
                 placeholder="Search the bin…"
                 aria-label="Search the recycle bin"
-                style={{ fontFamily: 'Georgia, serif', fontSize: 13, background: 'transparent', border: 'none',
+                style={{ fontFamily: 'var(--fm)', fontSize: 13, background: 'transparent', border: 'none',
                          borderBottom: `1px solid ${th.chromeBorder}`, color: th.chromeText, padding: '5px 0',
                          outline: 'none', width: '100%', marginBottom: 10 }}
               />
@@ -1811,49 +1840,51 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const s = {
   jumpCard: {
-    border: '1px solid #ddd6c9',
-    borderLeft: '3px solid #111',
+    border: '1px solid var(--bd)',
+    borderLeft: '3px solid var(--ph)',
     padding: '14px 16px 12px',
     marginBottom: 20,
-    background: '#faf8f4',
+    background: 'var(--bg2)',
   },
   jumpMeta: {
     display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8, flexWrap: 'wrap',
   },
   jumpLabel: {
-    fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#999',
+    fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--tx-faint)',
   },
   jumpTitle: {
-    fontSize: 13, color: '#111', fontWeight: 'normal',
+    fontSize: 13, color: 'var(--tx)', fontWeight: 'normal',
   },
   jumpSection: {
-    fontSize: 11, color: '#888', fontStyle: 'italic',
+    fontSize: 11, color: 'var(--tx-dim)', fontStyle: 'italic',
   },
   jumpPreview: {
     fontSize: 11, lineHeight: 1.65, marginBottom: 12,
     maxHeight: 90, overflow: 'hidden', whiteSpace: 'pre-wrap',
   },
-  jumpBefore: { color: '#999', fontStyle: 'italic' },
-  jumpNear:   { color: '#999', fontStyle: 'italic' },
-  jumpCursor: { color: '#111', fontWeight: 'bold', margin: '0 1px', animation: 'home-blink 1.1s step-start infinite' },
-  jumpAfter:  { color: '#bbb', fontStyle: 'italic' },
+  jumpBefore: { color: 'var(--tx-faint)', fontStyle: 'italic' },
+  jumpNear:   { color: 'var(--tx-faint)', fontStyle: 'italic' },
+  jumpCursor: { color: 'var(--tx)', fontWeight: 'bold', margin: '0 1px', animation: 'home-blink 1.1s step-start infinite' },
+  jumpAfter:  { color: 'var(--tx-faint)', fontStyle: 'italic' },
   jumpActions: { display: 'flex', gap: 8 },
   jumpForwardBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 11,
-    padding: '5px 14px', background: '#111', color: '#fff',
-    border: '1px solid #111', cursor: 'pointer',
+    fontFamily: 'var(--fm)', fontSize: 11,
+    padding: '5px 14px', background: 'var(--ph)', color: 'var(--bg)',
+    border: '1px solid var(--ph)', cursor: 'pointer',
   },
   jumpEditBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 11,
-    padding: '5px 14px', background: 'transparent', color: '#666',
-    border: '1px solid #ddd6c9', cursor: 'pointer',
+    fontFamily: 'var(--fm)', fontSize: 11,
+    padding: '5px 14px', background: 'transparent', color: 'var(--tx-dim)',
+    border: '1px solid var(--bd)', cursor: 'pointer',
   },
   page: {
+    position: 'relative',
     height: '100vh',
-    background: '#f5f2eb',
+    background: 'var(--bg)',
+    color: 'var(--tx)',
     display: 'flex',
     flexDirection: 'column',
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     overflow: 'hidden',
   },
   header: {
@@ -1861,29 +1892,31 @@ const s = {
     alignItems: 'center',
     padding: '0 24px',
     height: 44,
-    borderBottom: '1px solid #ddd6c9',
+    borderBottom: '1px solid var(--bd)',
+    background: 'var(--bg2)',
     flexShrink: 0,
     gap: 12,
   },
   logo: {
-    fontSize: 15,
-    fontStyle: 'italic',
-    color: '#888',
-    letterSpacing: '-0.01em',
+    fontFamily: 'var(--fd)',
+    fontSize: 20,
+    letterSpacing: '0.14em',
+    color: 'var(--ph)',
+    textShadow: 'var(--glow)',
   },
   flex1: { flex: 1 },
   userEmail: {
     fontSize: 11,
-    color: '#aaa',
+    color: 'var(--tx-faint)',
     fontStyle: 'italic',
   },
   ghostBtn: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 11,
     fontStyle: 'italic',
     background: 'transparent',
     border: 'none',
-    color: '#aaa',
+    color: 'var(--tx-faint)',
     cursor: 'pointer',
     padding: 0,
   },
@@ -1905,7 +1938,7 @@ const s = {
     marginBottom: 14,
   },
   syncNote: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic', color: '#a0998a',
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic', color: 'var(--tx-faint)',
   },
   toolbar: {
     display: 'flex',
@@ -1915,24 +1948,26 @@ const s = {
     flexWrap: 'wrap',
   },
   heading: {
-    fontSize: 22,
+    fontFamily: 'var(--fd)',
+    fontSize: 28,
     fontWeight: 'normal',
-    color: '#111',
-    letterSpacing: '-0.02em',
+    color: 'var(--ph)',
+    textShadow: 'var(--glow)',
+    letterSpacing: '0.06em',
     margin: 0,
   },
   sortBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 12, background: 'transparent', border: 'none',
-    color: '#6b6455', padding: '4px 0', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+    fontFamily: 'var(--fm)', fontSize: 12, background: 'transparent', border: 'none',
+    color: 'var(--tx-dim)', padding: '4px 0', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
   },
   sortMenu: {
     position: 'absolute', top: '100%', right: 0, marginTop: 4, minWidth: 170,
-    background: '#fff', border: '1px solid #ddd6c9', boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+    background: 'var(--bg2)', border: '1px solid var(--bd)', boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
     zIndex: 30, padding: '4px 0',
   },
   sortMenuItem: {
-    display: 'block', width: '100%', textAlign: 'left', fontFamily: 'Georgia, serif', fontSize: 12,
-    fontStyle: 'italic', background: 'transparent', border: 'none', color: '#666',
+    display: 'block', width: '100%', textAlign: 'left', fontFamily: 'var(--fm)', fontSize: 12,
+    fontStyle: 'italic', background: 'transparent', border: 'none', color: 'var(--tx-dim)',
     padding: '7px 14px', cursor: 'pointer',
   },
   searchWrap: {
@@ -1941,15 +1976,15 @@ const s = {
     gap: 6,
     flex: 1,
     minWidth: 180,
-    borderBottom: '1px solid #ddd6c9',   // a single hairline baseline — the field's only chrome
+    borderBottom: '1px solid var(--bd)',   // a single hairline baseline — the field's only chrome
   },
   searchInput: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 13,
     background: 'transparent',
     border: 'none',
     borderRadius: 0,
-    color: '#1f1f1f',
+    color: 'var(--tx)',
     padding: '5px 0',
     outline: 'none',
     flex: 1,
@@ -1965,19 +2000,19 @@ const s = {
     flexShrink: 0,
   },
   searchClear: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 13,
     background: 'transparent',
     border: 'none',
-    color: '#888',
+    color: 'var(--tx-dim)',
     cursor: 'pointer',
     padding: '0 6px',
   },
   binToggle: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 11,
     fontStyle: 'italic',
-    color: '#888',
+    color: 'var(--tx-dim)',
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
@@ -1988,13 +2023,13 @@ const s = {
   binResultsWrap: {
     marginTop: 18,
     paddingTop: 12,
-    borderTop: '1px solid #e6e0d4',
+    borderTop: '1px solid var(--bd)',
   },
   binResultsLabel: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 11,
     fontStyle: 'italic',
-    color: '#aaa',
+    color: 'var(--tx-faint)',
     textTransform: 'uppercase',
     letterSpacing: '0.08em',
     margin: '0 0 6px 0',
@@ -2005,54 +2040,54 @@ const s = {
     justifyContent: 'space-between',
     gap: 12,
     padding: '9px 2px',
-    borderBottom: '1px solid #f0ece3',
+    borderBottom: '1px solid var(--bd)',
   },
   binResultTitle: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 14,
-    color: '#555',
+    color: 'var(--tx-dim)',
   },
   binResultHint: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 11,
     fontStyle: 'italic',
-    color: '#bbb',
+    color: 'var(--tx-faint)',
     whiteSpace: 'nowrap',
   },
   exportAllBtn: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 12,
     background: 'transparent',
     border: 'none',
-    color: '#6b6455',
+    color: 'var(--tx-dim)',
     padding: '4px 0',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     flexShrink: 0,
   },
   newBtn: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 12,
     padding: '8px 16px',
-    background: '#111',
-    color: '#fff',
+    background: 'var(--ph)',
+    color: 'var(--bg)',
     border: 'none',
     cursor: 'pointer',
     flexShrink: 0,
   },
   syncNowBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 11, background: 'transparent', border: 'none',
-    color: '#6b6455', cursor: 'pointer', padding: 0,
+    fontFamily: 'var(--fm)', fontSize: 11, background: 'transparent', border: 'none',
+    color: 'var(--tx-dim)', cursor: 'pointer', padding: 0,
     textDecoration: 'underline', textUnderlineOffset: '3px',
   },
   list: {
-    borderTop: '1px solid #ddd6c9',
+    borderTop: '1px solid var(--bd)',
   },
   row: {
     display: 'flex',
     alignItems: 'center',
     padding: '14px 8px',
-    borderBottom: '1px solid #ddd6c9',
+    borderBottom: '1px solid var(--bd)',
     cursor: 'pointer',
     gap: 12,
     transition: 'background 0.1s',
@@ -2063,7 +2098,7 @@ const s = {
     display: 'flex',
     flexDirection: 'column',
     padding: '12px 8px',
-    borderBottom: '1px solid #ddd6c9',
+    borderBottom: '1px solid var(--bd)',
     cursor: 'pointer',
     gap: 6,
     transition: 'background 0.1s',
@@ -2092,7 +2127,7 @@ const s = {
   },
   rowTitle: {
     fontSize: 15,
-    color: '#111',
+    color: 'var(--tx)',
     flex: 1,
     minWidth: 0,
     // Wrap long titles, but cap at 2 lines then ellipsis (never hide text on one line, never grow
@@ -2105,7 +2140,7 @@ const s = {
   },
   rowMeta: {
     fontSize: 11,
-    color: '#888',
+    color: 'var(--tx-dim)',
     fontStyle: 'italic',
   },
   // The status dot sits on the meta line, to the left of the meta text — the text is nudged
@@ -2125,24 +2160,24 @@ const s = {
   // Idle "still here?" checkpoint — quiet card centered over the list.
   idlePromptWrap: {
     position: 'fixed', inset: 0, zIndex: 840, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: 'rgba(245,242,235,0.72)',
+    background: 'rgba(0,0,0,0.72)',
   },
   idlePromptCard: {
-    background: '#fff', border: '1px solid #ddd6c9', borderRadius: 0, padding: '22px 26px',
+    background: 'var(--bg2)', border: '1px solid var(--bd)', borderRadius: 0, padding: '22px 26px',
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, boxShadow: '0 6px 24px rgba(0,0,0,0.08)',
   },
-  idlePromptText: { fontFamily: 'Georgia, serif', fontSize: 17, color: '#111', fontStyle: 'italic' },
+  idlePromptText: { fontFamily: 'var(--fm)', fontSize: 17, color: 'var(--tx)', fontStyle: 'italic' },
   idlePromptBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 13, background: '#111', color: '#fff', border: '1px solid #111',
+    fontFamily: 'var(--fm)', fontSize: 13, background: 'var(--ph)', color: 'var(--bg)', border: '1px solid var(--ph)',
     borderRadius: 0, padding: '7px 18px', cursor: 'pointer',
   },
   badgeWarn: {
-    fontSize: 10, fontStyle: 'italic', color: '#a03030', background: '#f8ecec',
-    border: '1px solid #e3c4c4', borderRadius: 2, padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0,
+    fontSize: 10, fontStyle: 'italic', color: '#a03030', background: 'var(--bg2)',
+    border: '1px solid var(--bd)', borderRadius: 2, padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0,
   },
   badgeMuted: {
-    fontSize: 10, fontStyle: 'italic', color: '#888', background: '#f0ede6',
-    border: '1px solid #ddd6c9', borderRadius: 2, padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0,
+    fontSize: 10, fontStyle: 'italic', color: 'var(--tx-dim)', background: 'var(--bd)',
+    border: '1px solid var(--bd)', borderRadius: 2, padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0,
   },
   rowActions: {
     display: 'flex',
@@ -2151,31 +2186,31 @@ const s = {
     alignItems: 'center',
   },
   rowLink: {
-    fontFamily: 'Georgia, serif', fontSize: 11, fontStyle: 'italic',
-    background: 'transparent', border: 'none', color: '#888', cursor: 'pointer',
+    fontFamily: 'var(--fm)', fontSize: 11, fontStyle: 'italic',
+    background: 'transparent', border: 'none', color: 'var(--tx-dim)', cursor: 'pointer',
     padding: 0, whiteSpace: 'nowrap', textDecoration: 'underline', textUnderlineOffset: '2px',
   },
   rowMenuBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 18, lineHeight: 1, letterSpacing: '0.05em',
-    background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: '0 6px',
+    fontFamily: 'var(--fm)', fontSize: 18, lineHeight: 1, letterSpacing: '0.05em',
+    background: 'transparent', border: 'none', color: 'var(--tx-dim)', cursor: 'pointer', padding: '0 6px',
   },
   rowMenu: {
     position: 'absolute', top: '100%', right: 0, marginTop: 4, minWidth: 130,
-    background: '#fff', border: '1px solid #ddd6c9', boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+    background: 'var(--bg2)', border: '1px solid var(--bd)', boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
     zIndex: 30, padding: '4px 0',
   },
   rowMenuItem: {
-    display: 'block', width: '100%', textAlign: 'left', fontFamily: 'Georgia, serif', fontSize: 13,
-    background: 'transparent', border: 'none', color: '#333', padding: '9px 14px', cursor: 'pointer',
+    display: 'block', width: '100%', textAlign: 'left', fontFamily: 'var(--fm)', fontSize: 13,
+    background: 'transparent', border: 'none', color: 'var(--tx)', padding: '9px 14px', cursor: 'pointer',
     minHeight: 44, boxSizing: 'border-box',
   },
   exportBtn: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 10,
     fontStyle: 'italic',
     background: 'transparent',
-    border: '1px solid #ddd6c9',
-    color: '#aaa',
+    border: '1px solid var(--bd)',
+    color: 'var(--tx-faint)',
     cursor: 'pointer',
     padding: '2px 6px',
     minWidth: 64,
@@ -2183,11 +2218,11 @@ const s = {
     boxSizing: 'border-box',
   },
   deleteRowBtn: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 12,
     background: 'transparent',
-    border: '1px solid #ddd6c9',
-    color: '#bbb',
+    border: '1px solid var(--bd)',
+    color: 'var(--tx-faint)',
     cursor: 'pointer',
     padding: '2px 0',
     lineHeight: 1,
@@ -2197,7 +2232,7 @@ const s = {
   },
   rowDate: {
     fontSize: 11,
-    color: '#aaa',
+    color: 'var(--tx-faint)',
     fontStyle: 'italic',
     flexShrink: 0,
     textAlign: 'right',
@@ -2205,7 +2240,7 @@ const s = {
   },
   hint: {
     fontSize: 13,
-    color: '#aaa',
+    color: 'var(--tx-faint)',
     fontStyle: 'italic',
     paddingTop: 20,
     margin: 0,
@@ -2221,47 +2256,47 @@ const s = {
     maxWidth: 460, margin: '28px auto 20px', padding: '0 4px',
   },
   emptyHeading: {
-    fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 'normal',
-    color: '#111', letterSpacing: '-0.02em', margin: '0 0 12px',
+    fontFamily: 'var(--fm)', fontSize: 22, fontWeight: 'normal',
+    color: 'var(--tx)', letterSpacing: '-0.02em', margin: '0 0 12px',
   },
   emptyBody: {
-    fontFamily: 'Georgia, serif', fontSize: 15, lineHeight: 1.7, color: '#555', margin: '0 0 24px',
+    fontFamily: 'var(--fm)', fontSize: 15, lineHeight: 1.7, color: 'var(--tx-dim)', margin: '0 0 24px',
   },
   emptyTypes: {
     display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18,
   },
   emptySecondary: {
-    fontFamily: 'Georgia, serif', fontSize: 13, fontStyle: 'italic', color: '#888', margin: 0,
+    fontFamily: 'var(--fm)', fontSize: 13, fontStyle: 'italic', color: 'var(--tx-dim)', margin: 0,
   },
   emptyLink: {
-    fontFamily: 'Georgia, serif', fontSize: 13, fontStyle: 'italic', background: 'transparent',
-    border: 'none', color: '#555', textDecoration: 'underline', textUnderlineOffset: '2px',
+    fontFamily: 'var(--fm)', fontSize: 13, fontStyle: 'italic', background: 'transparent',
+    border: 'none', color: 'var(--tx-dim)', textDecoration: 'underline', textUnderlineOffset: '2px',
     cursor: 'pointer', padding: 0,
   },
   toast: {
     position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
-    background: '#1f1f1f', color: '#f5f2eb', fontFamily: 'Georgia, serif', fontSize: 13,
+    background: 'var(--tx)', color: 'var(--bg)', fontFamily: 'var(--fm)', fontSize: 13,
     padding: '9px 18px', zIndex: 1000, pointerEvents: 'none',
     animation: 'home-toast 1.8s ease forwards',
   },
   footer: {
     padding: '12px 24px',
-    borderTop: '1px solid #ddd6c9',
+    borderTop: '1px solid var(--bd)',
     display: 'flex',
     gap: 8,
     alignItems: 'center',
     flexShrink: 0,
   },
   footerLink: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 10,
-    color: '#aaa',
+    color: 'var(--tx-faint)',
     fontStyle: 'italic',
     textDecoration: 'none',
   },
-  footerDot: { color: '#aaa', fontSize: 10 },
+  footerDot: { color: 'var(--tx-faint)', fontSize: 10 },
   footerBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 10, color: '#aaa',
+    fontFamily: 'var(--fm)', fontSize: 10, color: 'var(--tx-faint)',
     fontStyle: 'italic', background: 'transparent', border: 'none',
     cursor: 'pointer', padding: 0,
   },
@@ -2275,27 +2310,27 @@ const s = {
     zIndex: 100,
   },
   modal: {
-    background: '#f5f2eb',
-    borderTop: '3px solid #111',
+    background: 'var(--bg)',
+    borderTop: '3px solid var(--ph)',
     padding: '24px 24px 18px',
     width: 320,
     maxWidth: 'calc(100vw - 32px)',
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     boxSizing: 'border-box',
   },
   modalTitle: {
     fontSize: 15,
-    color: '#111',
+    color: 'var(--tx)',
     margin: '0 0 16px',
   },
   typeBtn: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 12,
     width: '100%',
     padding: '10px 12px',
-    background: '#111',
-    color: '#fff',
-    border: '1px solid #111',
+    background: 'var(--ph)',
+    color: 'var(--bg)',
+    border: '1px solid var(--ph)',
     cursor: 'pointer',
     marginBottom: 8,
     textAlign: 'left',
@@ -2304,30 +2339,30 @@ const s = {
     gap: 2,
   },
   typeBtnLabel: { fontWeight: 'normal', fontSize: 13 },
-  typeBtnDesc:  { fontSize: 10, color: '#aaa', fontStyle: 'italic' },
+  typeBtnDesc:  { fontSize: 10, color: 'var(--tx-faint)', fontStyle: 'italic' },
   modalDivider: {
-    borderTop: '1px solid #ddd6c9',
+    borderTop: '1px solid var(--bd)',
     margin: '12px 0',
   },
   importBtn: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 12,
     width: '100%',
     padding: '9px 12px',
     background: 'transparent',
-    color: '#888',
-    border: '1px solid #ddd6c9',
+    color: 'var(--tx-dim)',
+    border: '1px solid var(--bd)',
     cursor: 'pointer',
     marginBottom: 8,
     textAlign: 'left',
     fontStyle: 'italic',
   },
   cancelBtn: {
-    fontFamily: 'Georgia, serif',
+    fontFamily: 'var(--fm)',
     fontSize: 11,
     background: 'transparent',
     border: 'none',
-    color: '#888',
+    color: 'var(--tx-dim)',
     cursor: 'pointer',
     fontStyle: 'italic',
     padding: 0,
