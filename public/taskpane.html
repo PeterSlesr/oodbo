@@ -336,170 +336,6 @@
       color: var(--line);
       font-style: normal;
     }
-    #sign-out-btn {
-      display: none;
-      font-family: Georgia, serif;
-      font-size: 9px;
-      font-style: italic;
-      color: var(--line);
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      padding: 0;
-    }
-    #sign-out-btn:hover { color: var(--muted); }
-
-    /* ── Auth overlay ── */
-    #auth-gate {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: var(--bg);
-      z-index: 200;
-      flex-direction: column;
-    }
-    #auth-gate.open { display: flex; }
-
-    /* ── Auth form ── */
-    #auth-form {
-      display: flex;
-      flex-direction: column;
-      padding: 28px 20px;
-      flex: 1;
-    }
-    #auth-form h1 {
-      font-size: 20px;
-      font-weight: normal;
-      letter-spacing: -0.02em;
-      color: var(--accent);
-      margin-bottom: 3px;
-    }
-    .auth-sub {
-      font-size: 10px;
-      color: var(--muted);
-      font-style: italic;
-      margin-bottom: 22px;
-    }
-    .auth-divider {
-      border-top: 1px solid var(--line);
-      margin-bottom: 22px;
-    }
-    .auth-label {
-      font-size: 11px;
-      color: var(--muted);
-      font-style: italic;
-      margin-bottom: 12px;
-      line-height: 1.5;
-    }
-    #auth-email {
-      font-family: Georgia, serif;
-      font-size: 13px;
-      padding: 7px 8px;
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--text);
-      width: 100%;
-      margin-bottom: 8px;
-    }
-    #auth-email:focus { outline: none; border-color: var(--accent); }
-    #auth-btn {
-      font-family: Georgia, serif;
-      font-size: 12px;
-      width: 100%;
-      padding: 9px 12px;
-      background: var(--accent);
-      color: #fff;
-      border: 1px solid var(--accent);
-      cursor: pointer;
-      transition: opacity 0.15s;
-      margin-bottom: 10px;
-    }
-    #auth-btn:hover   { opacity: 0.82; }
-    #auth-btn:disabled { opacity: 0.45; cursor: default; }
-    #auth-status {
-      font-size: 10px;
-      color: var(--muted);
-      font-style: italic;
-      min-height: 16px;
-      line-height: 1.5;
-    }
-    #auth-status.error { color: #a03030; font-style: normal; }
-
-    /* ── OAuth buttons ── */
-    .auth-or {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 4px 0;
-    }
-    .auth-or-line { flex: 1; border-top: 1px solid var(--line); }
-    .auth-or-text { font-size: 9px; color: var(--line); letter-spacing: 0.08em; text-transform: uppercase; }
-
-    .oauth-btn {
-      font-family: Georgia, serif;
-      font-size: 11px;
-      width: 100%;
-      padding: 7px 12px;
-      background: transparent;
-      border: 1px solid var(--line);
-      color: var(--muted);
-      cursor: pointer;
-      margin-bottom: 6px;
-      text-align: center;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    .oauth-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-    /* ── Auth waiting / polling ── */
-    #auth-waiting {
-      display: none;
-      flex-direction: column;
-      padding: 28px 20px;
-      flex: 1;
-    }
-    #auth-waiting h1 {
-      font-size: 20px;
-      font-weight: normal;
-      letter-spacing: -0.02em;
-      color: var(--accent);
-      margin-bottom: 3px;
-    }
-    .waiting-title {
-      font-size: 14px;
-      color: var(--text);
-      margin-bottom: 10px;
-    }
-    .waiting-body {
-      font-size: 11px;
-      color: var(--muted);
-      font-style: italic;
-      line-height: 1.65;
-      margin-bottom: 20px;
-    }
-    .waiting-body strong {
-      color: var(--text);
-      font-style: normal;
-    }
-    .waiting-dots {
-      font-size: 10px;
-      color: var(--line);
-      letter-spacing: 0.04em;
-      margin-bottom: 20px;
-      font-style: italic;
-    }
-    #auth-cancel {
-      font-family: Georgia, serif;
-      font-size: 10px;
-      padding: 5px 10px;
-      background: transparent;
-      border: 1px solid var(--line);
-      color: var(--muted);
-      cursor: pointer;
-      width: auto;
-      align-self: flex-start;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    #auth-cancel:hover { border-color: var(--accent); color: var(--accent); }
 
     /* ── Share progress modal ── */
     #share-overlay {
@@ -589,96 +425,6 @@
 </head>
 <body>
 
-<!-- ── Auth overlay ─────────────────────────────────────────────────────────── -->
-<div id="auth-gate" class="open">
-
-  <!-- Email form -->
-  <div id="auth-form">
-    <h1>oodbo</h1>
-    <p class="auth-sub">draft without looking back</p>
-    <div class="auth-divider"></div>
-    <p class="auth-label">Sign in to your account — or try oodbo free below. We'll email a link, no password needed.</p>
-    <!-- Normal email form -->
-    <div id="auth-email-row">
-      <input id="auth-email" type="email" placeholder="your@email.com" spellcheck="false" autocomplete="email"
-        onkeydown="if(event.key==='Enter') sendLink()"/>
-    </div>
-    <!-- Key sign-in (hidden by default) -->
-    <div id="auth-key-row" style="display:none; margin-bottom:8px;">
-      <input id="auth-password" type="password" placeholder="access key" spellcheck="false"
-        style="font-family:Georgia,serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--text);width:100%;margin-bottom:0;"
-        onkeydown="if(event.key==='Enter') sendLink()"/>
-    </div>
-    <button id="auth-btn" onclick="sendLink()">Send sign-in link</button>
-    <p id="auth-status"></p>
-
-    <div class="auth-or">
-      <span class="auth-or-line"></span>
-      <span class="auth-or-text">or</span>
-      <span class="auth-or-line"></span>
-    </div>
-
-    <button class="oauth-btn" onclick="startOAuth('google')">Sign in with Google</button>
-    <button class="oauth-btn" onclick="startOAuth('microsoft')">Sign in with Microsoft</button>
-    <button class="oauth-btn" id="auth-key-toggle" onclick="togglePasswordRow()" style="display:none;">Sign in with key</button>
-
-    <div class="auth-or"><span class="auth-or-line"></span><span class="auth-or-text">or</span><span class="auth-or-line"></span></div>
-    <button class="oauth-btn" id="auth-try-free" style="border-color:var(--accent); color:var(--accent);" onclick="startTrial()">Try for free</button>
-  </div>
-
-  <!-- Polling / waiting -->
-  <div id="auth-waiting">
-    <h1>oodbo</h1>
-    <div class="auth-divider" style="margin-top:3px; margin-bottom:22px;"></div>
-    <p class="waiting-title">Check your email</p>
-    <p class="waiting-body">
-      We sent a sign-in link to <strong id="auth-waiting-email"></strong>.<br><br>
-      Click the link in that email — this window will update automatically.
-    </p>
-    <p class="waiting-dots" id="waiting-indicator">waiting…</p>
-    <button id="auth-cancel" onclick="cancelPolling()">Cancel</button>
-  </div>
-
-  <!-- No account -->
-  <div id="auth-no-account" style="display:none; flex-direction:column; padding:28px 20px; flex:1;">
-    <h1>oodbo</h1>
-    <div class="auth-divider" style="margin-top:3px; margin-bottom:22px;"></div>
-    <p class="waiting-title">No account found</p>
-    <p class="waiting-body">
-      <strong id="auth-no-account-email"></strong> doesn't have an oodbo account yet.<br><br>
-      Create one at oodbo.io, then come back and sign in here.
-    </p>
-    <button class="oauth-btn" style="margin-bottom:12px;" onclick="openOodbo()">Create account at oodbo.io</button>
-    <button class="sec-btn" onclick="backToAuthForm()">← Try a different email</button>
-  </div>
-
-  <!-- Not paid / upgrade -->
-  <div id="auth-upgrade" style="display:none; flex-direction:column; padding:28px 20px; flex:1;">
-    <h1>oodbo</h1>
-    <div class="auth-divider" style="margin-top:3px; margin-bottom:22px;"></div>
-    <p class="waiting-title">Upgrade required</p>
-    <p class="waiting-body">
-      The Word add-in is available to paid oodbo accounts.<br><br>
-      Visit oodbo.io to upgrade.
-    </p>
-    <button class="oauth-btn" style="margin-bottom:12px;" onclick="openOodbo()">Upgrade at oodbo.io</button>
-    <button class="sec-btn" onclick="signOut()">sign out</button>
-  </div>
-
-  <!-- Free trial ended -->
-  <div id="auth-trial-ended" style="display:none; flex-direction:column; padding:28px 20px; flex:1;">
-    <h1>oodbo</h1>
-    <div class="auth-divider" style="margin-top:3px; margin-bottom:22px;"></div>
-    <p class="waiting-title">Free trial complete</p>
-    <p class="waiting-body">
-      You've used your <span id="trial-ended-count">10</span> free forwards.<br><br>
-      Get oodbo to keep writing without limits.
-    </p>
-    <button class="oauth-btn" style="margin-bottom:12px;" onclick="openOodbo()">Get oodbo at oodbo.io</button>
-    <button class="sec-btn" onclick="showAuthForm()">Already purchased? Sign in</button>
-  </div>
-
-</div>
 
 <!-- ── Main task pane ──────────────────────────────────────────────────────── -->
 <div id="header">
@@ -688,11 +434,6 @@
 
 <div id="body">
 
-  <div id="trial-banner" style="display:none; background:#fbf3e2; border-bottom:1px solid var(--line); border-left:2px solid #c8a24a; padding:10px 14px; font-size:11px; color:#7a5a12; flex-shrink:0;">
-    <strong>Free trial</strong> — <span id="trial-count">0</span> forward <span id="trial-noun">trials</span> left.
-    <a href="#" onclick="showAuthForm(); return false;" style="color:#7a5a12;">Sign in</a> ·
-    <a href="#" onclick="openOodbo(); return false;" style="color:#7a5a12;">Get oodbo</a>
-  </div>
 
   <div class="row">
     <div class="row-label">Session Start</div>
@@ -745,7 +486,6 @@
   <span id="status-msg">Ready</span>
   <div style="display:flex; align-items:center; gap:8px;">
     <span id="version-label">v3.0.0</span>
-    <button id="sign-out-btn" onclick="signOut()">sign out</button>
   </div>
 </div>
 
@@ -802,10 +542,6 @@
     { text: "You have to write the book that wants to be written.", attr: "— Madeleine L'Engle" },
   ];
 
-  // ── Config / API base ────────────────────────────────────────────────────────
-  // Taskpane is served from the same domain as the API (oodbo.io), so use
-  // relative paths — all fetch calls become /api/auth/... automatically.
-  const _apiBaseUrl = '';
 
   // ── Storage helpers (OfficeRuntime.storage → localStorage fallback) ──────────
   async function foGet(key) {
@@ -827,411 +563,14 @@
     try { localStorage.removeItem(key); } catch(e) {}
   }
 
-  // ── Auth state ───────────────────────────────────────────────────────────────
-  let _pollInterval  = null;
-  let _pollTimeout   = null;
-  let _pollKey       = null;
-  let _pollEmail     = null;
-  let _dotsInterval  = null;
-  let _paid          = false;   // paid entitlement, from /api/auth/me (signed-in users only)
 
-  // ── Anonymous free trial (device-local, no sign-in) ──────────────────────────
-  // The trial is NOT tied to an account — signing in is only for paid users. A device
-  // gets TRIAL_FORWARDS free publish-backs, counted in OfficeRuntime.storage. Publishes
-  // never touch the server, so nothing hangs on the network or an expired token.
-  // Resettable by clearing the add-in cache — accepted (a resetter wasn't going to pay).
-  const TRIAL_FORWARDS = 10;
-  let _trialUsed = 0;                                     // loaded from storage at startup
-  function trialLeft() { return Math.max(0, TRIAL_FORWARDS - _trialUsed); }
-
-  // No login gate — the add-in is free, unlimited, and fully client-side (no server, no
-  // account, no trial cap). On load we just reveal the writing UI. `_paid = true` makes
-  // every legacy `!_paid` check a no-op (unlimited publishes, no wall, banner hidden).
-  async function checkStoredAuth() {
-    _paid = true;
-    document.getElementById('auth-gate').classList.remove('open');
-    const so = document.getElementById('sign-out-btn');
-    if (so) so.style.display = 'none';
-    updateTrialBanner();     // _paid=true → banner stays hidden
+  // The add-in is free, unlimited, and fully client-side — no sign-in, no server, no trial.
+  // On load we just reveal the writing UI.
+  function boot() {
     setStatus('Ready');
     initTaskpane();
   }
 
-  // Try to refresh an expired access token into a PAID session. Returns true (and enters
-  // the paid view) on success; false otherwise — the caller then falls back to the trial.
-  async function tryRefreshPaid() {
-    const refreshToken = await foGet('oodbo:refresh');
-    if (!refreshToken) return false;
-    try {
-      const res = await fetch(_apiBaseUrl + '/api/auth/addin?action=refresh', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ refresh_token: refreshToken }),
-      });
-      if (res.ok) {
-        const { access_token, refresh_token } = await res.json();
-        if (access_token)  await foSet('oodbo:session', access_token);
-        if (refresh_token) await foSet('oodbo:refresh', refresh_token);
-        const meRes = await fetch(_apiBaseUrl + '/api/auth/me', {
-          headers: { Authorization: 'Bearer ' + access_token }
-        });
-        if (meRes.ok) {
-          const me = await meRes.json();
-          if (me.paid) { enterPaid(me.email); return true; }
-        }
-      }
-    } catch(e) {}
-    // Not a usable paid session — drop the dead tokens; caller falls back to the trial.
-    await foRemove('oodbo:session');
-    await foRemove('oodbo:refresh');
-    return false;
-  }
-
-  async function sendLink() {
-    const usingKey = document.getElementById('auth-key-row').style.display !== 'none';
-    const email    = usingKey ? '' : document.getElementById('auth-email').value.trim();
-    const password = usingKey ? (document.getElementById('auth-password')?.value || '').trim() : '';
-
-    if (!usingKey && !email) {
-      setAuthStatus('Please enter your email address.', true);
-      return;
-    }
-    if (usingKey && !password) {
-      setAuthStatus('Please enter your access key.', true);
-      return;
-    }
-
-    const btn = document.getElementById('auth-btn');
-    btn.disabled = true;
-    btn.textContent = usingKey ? 'Signing in...' : 'Sending...';
-    setAuthStatus('');
-
-    try {
-      _pollKey = crypto.randomUUID();
-      const body = usingKey
-        ? { password, poll_key: _pollKey }
-        : { email, source: 'addin', poll_key: _pollKey };
-      const res = await fetch(_apiBaseUrl + '/api/auth/magic/request', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setAuthStatus(data.error || 'Could not send link. Try again.', true);
-        btn.disabled = false;
-        btn.textContent = 'Send sign-in link';
-        return;
-      }
-
-      if (data.type === 'no_account') {
-        btn.disabled = false;
-        btn.textContent = 'Send sign-in link';
-        showNoAccount(email);
-        return;
-      }
-
-      if (data.type === 'not_paid') {
-        btn.disabled = false;
-        btn.textContent = 'Send sign-in link';
-        showUpgrade(email);
-        return;
-      }
-
-      // Switch to waiting screen and start polling
-      // For key sign-in, the email comes back from the server in data.email
-      _pollEmail = (usingKey && data.email) ? data.email : email;
-      if (usingKey) {
-        // Key mode — sign in silently without showing the "check your email" screen
-        startPolling(_pollEmail);
-      } else {
-        document.getElementById('auth-waiting-email').textContent = _pollEmail;
-        document.getElementById('auth-form').style.display    = 'none';
-        document.getElementById('auth-waiting').style.display = 'flex';
-        startDotsAnimation();
-        startPolling(_pollEmail);
-      }
-
-    } catch(e) {
-      setAuthStatus('Network error — check your connection and try again.', true);
-      btn.disabled = false;
-      btn.textContent = 'Send sign-in link';
-    }
-  }
-
-  function startPolling(email) {
-    stopPolling();
-    _pollInterval = setInterval(() => pollForSession(email), 2500);
-    // Auto-cancel after 10 minutes
-    _pollTimeout = setTimeout(() => {
-      stopPolling();
-      document.getElementById('auth-waiting').style.display = 'none';
-      document.getElementById('auth-form').style.display    = 'flex';
-      const btn = document.getElementById('auth-btn');
-      btn.disabled = false;
-      btn.textContent = 'Send sign-in link';
-      setAuthStatus('Sign-in link expired — request a new one.', true);
-    }, 10 * 60 * 1000);
-  }
-
-  function stopPolling() {
-    if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
-    if (_pollTimeout)  { clearTimeout(_pollTimeout);   _pollTimeout  = null; }
-    stopDotsAnimation();
-  }
-
-  async function pollForSession(email) {
-    try {
-      const res = await fetch(
-        _apiBaseUrl + '/api/auth/addin?action=session&email=' + encodeURIComponent(email) + '&poll_key=' + encodeURIComponent(_pollKey || '')
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.access_token) {
-        stopPolling();
-        await foSet('oodbo:session', data.access_token);
-        if (data.refresh_token) await foSet('oodbo:refresh', data.refresh_token);
-        try {
-          const meRes = await fetch(_apiBaseUrl + '/api/auth/me', {
-            headers: { Authorization: 'Bearer ' + data.access_token }
-          });
-          if (meRes.ok) {
-            const me = await meRes.json();
-            if (me.paid) { enterPaid(me.email); return; }
-            showUpgrade(me.email);
-            return;
-          }
-        } catch(e) {}
-        enterTrial();   // couldn't confirm paid (me fetch failed) — trial UI; next open re-checks
-      }
-      // data.pending === true → keep polling
-    } catch(e) {}
-  }
-
-  function startOAuth(provider) {
-    const url = location.origin + '/addin-auth.html?provider=' + provider;
-
-    Office.context.ui.displayDialogAsync(
-      url,
-      { width: 50, height: 60, displayInIframe: false },
-      (result) => {
-        if (result.status === Office.AsyncResultStatus.Failed) {
-          setAuthStatus('Could not open sign-in window — ' + result.error.message, true);
-          return;
-        }
-        const dialog = result.value;
-
-        dialog.addEventHandler(Office.EventType.DialogMessageReceived, async (msg) => {
-          let data;
-          try { data = JSON.parse(msg.message); } catch(e) { return; }
-          dialog.close();
-
-          if (data.type === 'auth_success') {
-            await foSet('oodbo:session', data.access_token);
-            if (data.refresh_token) await foSet('oodbo:refresh', data.refresh_token);
-            try {
-              const meRes = await fetch(_apiBaseUrl + '/api/auth/me', {
-                headers: { Authorization: 'Bearer ' + data.access_token }
-              });
-              if (meRes.ok) {
-                const me = await meRes.json();
-                if (me.paid) { enterPaid(me.email); return; }
-                showUpgrade(me.email);
-                return;
-              }
-            } catch(e) {}
-            enterTrial();   // couldn't confirm paid (me fetch failed) — trial UI; next open re-checks
-          } else {
-            setAuthStatus('Sign-in failed — please try again.', true);
-          }
-        });
-
-        // User closed the dialog without finishing — do nothing
-        dialog.addEventHandler(Office.EventType.DialogEventReceived, () => {});
-      }
-    );
-  }
-
-  function cancelPolling() {
-    stopPolling();
-    _pollEmail = null;
-    document.getElementById('auth-waiting').style.display = 'none';
-    document.getElementById('auth-form').style.display    = 'flex';
-    const btn = document.getElementById('auth-btn');
-    btn.disabled = false;
-    btn.textContent = 'Send sign-in link';
-    setAuthStatus('');
-  }
-
-  async function signOut() {
-    await foRemove('oodbo:session');
-    await foRemove('oodbo:refresh');
-    // Reset key mode back to email mode and clear the key field
-    const keyRow   = document.getElementById('auth-key-row');
-    const emailRow = document.getElementById('auth-email-row');
-    const toggle   = document.getElementById('auth-key-toggle');
-    const btn      = document.getElementById('auth-btn');
-    const label    = document.querySelector('.auth-label');
-    const keyInput = document.getElementById('auth-password');
-    if (keyRow)   { keyRow.style.display = 'none'; }
-    if (emailRow) { emailRow.style.display = 'block'; }
-    if (toggle)   { toggle.textContent = 'Sign in with key'; }
-    if (btn)      { btn.textContent = 'Send sign-in link'; }
-    if (label)    { label.style.display = 'block'; }
-    if (keyInput) { keyInput.value = ''; }
-    showAuthForm();
-    setStatus('Signed out.');
-  }
-
-  function updateTrialBanner() {
-    const el = document.getElementById('trial-banner');
-    if (!el) return;
-    if (_paid) { el.style.display = 'none'; return; }
-    const left = trialLeft();
-    document.getElementById('trial-count').textContent = left;
-    document.getElementById('trial-noun').textContent  = left === 1 ? 'trial' : 'trials';
-    el.style.display = 'block';
-  }
-
-  // Paid, signed-in user → reveal the writing UI, unlimited.
-  function enterPaid(email) {
-    _paid = true;
-    document.getElementById('auth-gate').classList.remove('open');
-    document.getElementById('sign-out-btn').style.display = 'block';
-    updateTrialBanner();
-    setStatus(email ? 'Signed in as ' + email : 'Ready');
-    setTimeout(() => setStatus('Ready'), 4000);
-    initTaskpane();
-  }
-
-  // Anonymous trial (not signed in) → reveal the writing UI with the trial banner, or
-  // the wall if the free forwards are used up.
-  function enterTrial() {
-    _paid = false;
-    if (trialLeft() <= 0) { showTrialEnded(); return; }
-    document.getElementById('auth-gate').classList.remove('open');
-    document.getElementById('sign-out-btn').style.display = 'none';
-    updateTrialBanner();
-    setStatus('Free trial');
-    setTimeout(() => setStatus('Ready'), 4000);
-    initTaskpane();
-  }
-
-  // Free trial used up → the wall: buy, or sign in if already purchased.
-  function showTrialEnded() {
-    document.getElementById('auth-gate').classList.add('open');
-    document.getElementById('auth-form').style.display        = 'none';
-    document.getElementById('auth-waiting').style.display     = 'none';
-    document.getElementById('auth-no-account').style.display  = 'none';
-    document.getElementById('auth-upgrade').style.display     = 'none';
-    document.getElementById('trial-ended-count').textContent  = TRIAL_FORWARDS;
-    document.getElementById('auth-trial-ended').style.display = 'flex';
-    document.getElementById('sign-out-btn').style.display     = 'none';
-  }
-
-  function showNoAccount(email) {
-    document.getElementById('auth-form').style.display         = 'none';
-    document.getElementById('auth-waiting').style.display      = 'none';
-    document.getElementById('auth-upgrade').style.display      = 'none';
-    document.getElementById('auth-trial-ended').style.display  = 'none';
-    document.getElementById('auth-no-account').style.display   = 'flex';
-    document.getElementById('auth-no-account-email').textContent = email;
-  }
-
-  function showUpgrade(email) {
-    document.getElementById('auth-gate').classList.add('open');
-    document.getElementById('auth-form').style.display         = 'none';
-    document.getElementById('auth-waiting').style.display      = 'none';
-    document.getElementById('auth-no-account').style.display   = 'none';
-    document.getElementById('auth-trial-ended').style.display  = 'none';
-    document.getElementById('auth-upgrade').style.display      = 'flex';
-    document.getElementById('sign-out-btn').style.display      = 'block';
-  }
-
-  function backToAuthForm() {
-    document.getElementById('auth-no-account').style.display   = 'none';
-    document.getElementById('auth-upgrade').style.display      = 'none';
-    document.getElementById('auth-trial-ended').style.display  = 'none';
-    document.getElementById('auth-form').style.display         = 'flex';
-    setAuthStatus('');
-    setTimeout(() => document.getElementById('auth-email').focus(), 50);
-  }
-
-  // "Try for free" (on the one sign-in page) → enter the trial: the writing UI if
-  // forwards remain, otherwise the wall. Doubles as the escape from sign-in.
-  function startTrial() { enterTrial(); }
-
-  function openOodbo() {
-    const url = 'https://www.oodbo.io';
-    try { Office.context.ui.openBrowserWindow(url); } catch(e) { window.open(url, '_blank'); }
-  }
-
-  function showAuthForm() {
-    document.getElementById('auth-gate').classList.add('open');
-    document.getElementById('auth-form').style.display         = 'flex';
-    document.getElementById('auth-waiting').style.display      = 'none';
-    document.getElementById('auth-no-account').style.display   = 'none';
-    document.getElementById('auth-upgrade').style.display      = 'none';
-    document.getElementById('auth-trial-ended').style.display  = 'none';
-    document.getElementById('sign-out-btn').style.display = 'none';
-    // Reset form state
-    const btn = document.getElementById('auth-btn');
-    btn.disabled = false;
-    btn.textContent = 'Send sign-in link';
-    setAuthStatus('');
-    setTimeout(() => {
-      const inp = document.getElementById('auth-email');
-      if (inp) inp.focus();
-    }, 50);
-  }
-
-  function togglePasswordRow() {
-    const keyRow   = document.getElementById('auth-key-row');
-    const emailRow = document.getElementById('auth-email-row');
-    const toggle   = document.getElementById('auth-key-toggle');
-    const btn      = document.getElementById('auth-btn');
-    const usingKey = keyRow.style.display !== 'none';
-    const label = document.querySelector('.auth-label');
-    if (usingKey) {
-      // Switch back to email
-      keyRow.style.display   = 'none';
-      emailRow.style.display = 'block';
-      btn.textContent        = 'Send sign-in link';
-      toggle.textContent     = 'Sign in with key';
-      if (label) label.style.display = 'block';
-      setTimeout(() => document.getElementById('auth-email').focus(), 50);
-    } else {
-      // Switch to key
-      emailRow.style.display = 'none';
-      keyRow.style.display   = 'block';
-      btn.textContent        = 'Sign in';
-      toggle.textContent     = 'use email instead';
-      if (label) label.style.display = 'none';
-      setTimeout(() => document.getElementById('auth-password').focus(), 50);
-    }
-  }
-
-  function setAuthStatus(msg, isError) {
-    const el = document.getElementById('auth-status');
-    el.textContent = msg;
-    el.className = isError ? 'error' : '';
-  }
-
-  // Animated dots for the waiting screen
-  const DOT_STATES = ['waiting…', 'waiting…·', 'waiting…··', 'waiting…···'];
-  let _dotIdx = 0;
-  function startDotsAnimation() {
-    stopDotsAnimation();
-    _dotsInterval = setInterval(() => {
-      _dotIdx = (_dotIdx + 1) % DOT_STATES.length;
-      const el = document.getElementById('waiting-indicator');
-      if (el) el.textContent = DOT_STATES[_dotIdx];
-    }, 600);
-  }
-  function stopDotsAnimation() {
-    if (_dotsInterval) { clearInterval(_dotsInterval); _dotsInterval = null; }
-  }
 
   // ── State ────────────────────────────────────────────────────────────────────
   let sessionWords      = 0;
@@ -1323,17 +662,7 @@
   }
 
   // ── Boot ─────────────────────────────────────────────────────────────────────
-  // Key sign-in is a reviewer-only backdoor for Microsoft AppSource review.
-  // OFF in production; flip to true only for a review cycle, then back.
-  const KEY_SIGNIN_ENABLED = false;
-
-  document.addEventListener('DOMContentLoaded', function() {
-    if (KEY_SIGNIN_ENABLED) {
-      var t = document.getElementById('auth-key-toggle');
-      if (t) t.style.display = '';
-    }
-    checkStoredAuth();
-  });
+  document.addEventListener('DOMContentLoaded', boot);
 
   if (typeof Office !== 'undefined') {
     Office.onReady(() => {});
@@ -1494,8 +823,8 @@
     ctx.fillStyle = muted; ctx.font = '28px Georgia, serif';
     ctx.fillText(dateStr, cx, 828);
 
-    // Footer — "written by a human at oodbo.io" (oodbo.io emphasised)
-    const footY = 930, phrase = 'written by a human at ', brand = 'oodbo.io';
+    // Footer — "written by a human at write.mercoogs.com" (brand emphasised)
+    const footY = 930, phrase = 'written by a human at ', brand = 'write.mercoogs.com';
     ctx.textAlign = 'left';
     ctx.font = 'italic 34px Georgia, serif'; const wPhrase = ctx.measureText(phrase).width;
     ctx.font = 'bold 34px Georgia, serif';   const wBrand = ctx.measureText(brand).width;
@@ -1508,7 +837,7 @@
     const targetPart = target > 0 ? ' (of ' + target.toLocaleString() + ' target)' : '';
     const lead = words.toLocaleString() + (words === 1 ? ' word this session' : ' words this session')
       + targetPart + ', ' + dateStr + '. A forward-only session, written by a human at ';
-    return { lead, brand: 'oodbo.io' };
+    return { lead, brand: 'write.mercoogs.com' };
   }
 
   function openShareModal() {
@@ -1519,7 +848,7 @@
     const parts = shareTextParts(sessionWords, target, dateStr);
     _shareTextLine = parts.lead + parts.brand;
     document.getElementById('share-textline').innerHTML =
-      parts.lead + '<a href="https://oodbo.io" target="_blank" rel="noreferrer">' + parts.brand + '</a>';
+      parts.lead + '<a href="https://write.mercoogs.com" target="_blank" rel="noreferrer">' + parts.brand + '</a>';
 
     document.getElementById('share-copy-card').textContent = 'copy card';
     document.getElementById('share-copy-text').textContent = 'copy text';
@@ -1615,9 +944,6 @@
 
   // ── Launch dialog ─────────────────────────────────────────────────────────────
   async function launchDialog() {
-    // Out of free forwards and unpaid → the wall instead of opening the frame, so the
-    // user never writes text they can't publish.
-    if (!_paid && trialLeft() <= 0) { showTrialEnded(); return; }
     // Require a saved document: the crash-recovery draft lives in the document's settings, which only
     // persist to disk once the document has a file. An untitled doc has nowhere to save it, so block
     // until it's saved rather than risk a crash losing the writing.
@@ -1705,23 +1031,8 @@
 
   // ── Publish (local free-trial gate) ────────────────────────────────────────────
   // Consumes one local trial forward (device-level, anonymous) then inserts the text.
-  // No network — the publish never hangs and there's no token to expire. Paid users are
-  // unlimited and skip the counter.
+  // Insert the finished text into the Word document. Free and unlimited — no network, no counter.
   function handlePublish(text, wordCount) {
-    if (!_paid) {
-      if (trialLeft() <= 0) {
-        // Free trial's done (guards a second publish within one open) — keep the text
-        // so it isn't lost, and show the wall.
-        unpublishedText = text;
-        document.getElementById('unpublished-banner').classList.add('visible');
-        showTrialEnded();
-        return;
-      }
-      _trialUsed += 1;
-      foSet('oodbo:forwards_used', String(_trialUsed));   // persist (fire-and-forget)
-      updateTrialBanner();
-    }
-
     insertTextAtCursor(text, wordCount);
     unpublishedText = '';
     clearForwardDraftFromDoc();   // published — recovery draft no longer needed
