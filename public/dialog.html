@@ -108,7 +108,7 @@
     #text-display .visible { color: #111111; }
     /* Empty-state prompt: shown only before any text is typed, so the surface never looks blank.
        Inherits the theme's text colour at low opacity; non-interactive, never selected/published. */
-    #text-display .ph { opacity: 0.45; font-style: italic; pointer-events: none; user-select: none; }
+    #text-display .ph { opacity: 0.45; font-style: italic; pointer-events: none; user-select: none; color: #111111; }
     #text-display .cursor {
       display: inline-block;
       width: 2px;
@@ -178,6 +178,7 @@
     body.dark-white #text-display .hidden  { color: #2a2a2a; }
     body.dark-white #text-display .visible { color: #ffffff; }
     body.dark-white #text-display .cursor  { width: 0.55em; height: 1em; background: #ffffff; margin-left: 0; }
+    body.dark-white #text-display .ph      { color: #ffffff; }
 
     /* ══ Dark — Green ══ */
     body.dark-green { background: #0a0a0a; }
@@ -187,6 +188,7 @@
     body.dark-green #text-display .hidden  { color: #1a3d1a; }
     body.dark-green #text-display .visible { color: #33ff33; }
     body.dark-green #text-display .cursor  { width: 0.55em; height: 1em; background: #33ff33; margin-left: 0; }
+    body.dark-green #text-display .ph      { color: #33ff33; }
 
     /* ══ Dark — Amber ══ */
     body.dark-amber { background: #0a0800; }
@@ -196,6 +198,7 @@
     body.dark-amber #text-display .hidden  { color: #3d2800; }
     body.dark-amber #text-display .visible { color: #ffb000; }
     body.dark-amber #text-display .cursor  { width: 0.55em; height: 1em; background: #ffb000; margin-left: 0; }
+    body.dark-amber #text-display .ph      { color: #ffb000; }
   </style>
 </head>
 <body>
