@@ -157,11 +157,13 @@ export default function App() {
   async function handleProviderSignIn(hint) {
     let u;
     try {
-      // Pre-select an account so resuming is one click, no chooser: an explicit hint (from the desktop
-      // picker row), else the last account from a prior session.
-      let h = hint;
-      if (!h) { try { h = JSON.parse(localStorage.getItem('fwd:user') || 'null')?.email; } catch {} }
-      u = await providerSignIn(h);                // { provider: 'google', email }
+      // Pre-select an account so resuming is one click, no chooser: an explicit email hint (from the
+      // desktop picker row), else the last account from a prior session. Guard the type — the web
+      // "sign in" button is wired onClick={onSignIn}, which would otherwise pass a click EVENT as the
+      // hint; Google then calls .trim() on it and throws ("c.trim is not a function").
+      let h = (typeof hint === 'string' && hint) ? hint : null;
+      if (!h) { try { h = JSON.parse(localStorage.getItem('fwd:user') || 'null')?.email || null; } catch {} }
+      u = await providerSignIn(h || undefined);   // { provider: 'google', email }
     } catch (e) {
       console.warn('sign-in cancelled/failed:', e);
       return;

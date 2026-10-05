@@ -66,7 +66,7 @@ function requestToken({ interactive, scope, hint }) {
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope,
-        ...(hint ? { hint } : {}),   // target the already-signed-in account (skip the chooser)
+        ...(typeof hint === 'string' && hint ? { hint } : {}),   // string email only — GIS calls .trim() on it (never pass an event)
         callback: (resp) => {
           if (resp.error) { reject(new Error(resp.error)); return; }
           resolve({ accessToken: resp.access_token, expiresAt: Date.now() + (Number(resp.expires_in) || 3600) * 1000 });
