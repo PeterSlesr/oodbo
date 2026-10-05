@@ -106,6 +106,9 @@
     }
     #text-display .hidden  { color: #d8d8d8; }
     #text-display .visible { color: #111111; }
+    /* Empty-state prompt: shown only before any text is typed, so the surface never looks blank.
+       Inherits the theme's text colour at low opacity; non-interactive, never selected/published. */
+    #text-display .ph { opacity: 0.45; font-style: italic; pointer-events: none; user-select: none; }
     #text-display .cursor {
       display: inline-block;
       width: 2px;
@@ -341,10 +344,14 @@
       const hiddenText  = tokens.slice(0, splitIdx).map(t => t.text).join('');
       const visibleText = tokens.slice(splitIdx).map(t => t.text).join('');
 
+      // Empty-state prompt so a fresh session never looks like a blank/broken screen (it's the
+      // distraction-free writing surface). Disappears on the first character typed.
+      const placeholder = sessionText ? '' : '<span class="ph">Start writing… your words appear here. Ctrl+Enter publishes into your document.</span>';
+
       document.getElementById('text-display').innerHTML =
         '<span class="hidden">'  + esc(hiddenText)  + '</span>' +
         '<span class="visible">' + esc(visibleText) + '</span>' +
-        '<span class="cursor"></span>';
+        '<span class="cursor"></span>' + placeholder;
 
       const box = document.getElementById('writing-box');
       box.scrollTop = box.scrollHeight;

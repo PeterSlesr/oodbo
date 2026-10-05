@@ -37,9 +37,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "windows": {
-      "signCommand": "artifact-signing-cli -e https://weu.codesigning.azure.net -a oodbo -c oodbo -d oodbo %1"
-    },
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }

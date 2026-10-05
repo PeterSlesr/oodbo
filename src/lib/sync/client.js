@@ -26,6 +26,13 @@ function killed() {
   try { return localStorage.getItem(SYNC_OFF_KEY) === '1'; } catch { return false; }
 }
 
+// Desktop: the IDB entry codec that encrypts a PIN account's project data at rest (self-gates on the
+// active vault key, so it's a pass-through for open/cloud-no-PIN accounts). Web never calls this.
+async function vaultCodec() {
+  const { encodeEntry, decodeEntry } = await import('../localVault.js');
+  return { encode: encodeEntry, decode: decodeEntry };
+}
+
 // UA-derived label for fork filenames — "Chrome (Web)" etc. (DECISION 6). Trivial because
 // the browser is all that disambiguates the two-browsers case; nickname is post-launch.
 function webDeviceLabel() {
@@ -59,7 +66,11 @@ export async function initSync({ user, getToken, hooks = {} }) {
 
   _provider = user.provider;
   _owner    = user.email;
-  _adapter  = createIdbAdapter();
+  // Desktop: the appdata-sidecar adapter (authoritative on disk, survives an IDB wipe) wraps the IDB
+  // cache so every engine write mirrors to %APPDATA% (+ records/trashed state). Web uses plain IDB.
+  _adapter  = IS_TAURI
+    ? (await import('../sidecarAdapter.js')).createSidecarAdapter(_owner, await vaultCodec())
+    : createIdbAdapter();
   // At-rest content encryption (contentCrypto.js / ENCRYPTION-DESIGN.md): wrap the cloud once at this
   // single seam. Encrypts xml into save/trash, decrypts out of load; engine/fork/canonical/migration see
   // plaintext. Legacy plaintext files pass through and convert to ciphertext on next save. `_owner` = key.
@@ -75,7 +86,7 @@ export async function initSync({ user, getToken, hooks = {} }) {
   // and travels inside the file, so it survives a reload AND reaches the other device — see
   // getConflicts. This is now purely the UI notification.
   const onBadge = hooks.onBadge || (() => {});
-  _forkHandler = createForkHandler({ adapter: _adapter, provider: _provider, owner: _owner, deviceLabel: webDeviceLabel(), onBadge });
+  _forkHandler = createForkHandler({ adapter: _adapter, provider: _provider, owner: _owner, deviceLabel: IS_TAURI ? 'Desktop' : webDeviceLabel(), onBadge });
 
   _engine = createEngine({
     adapter: _adapter, cloud: _cloud, provider: _provider, owner: _owner,
@@ -88,6 +99,14 @@ export async function initSync({ user, getToken, hooks = {} }) {
       onBoot:   hooks.onBoot   || (async () => {}),
     },
   });
+  // Desktop: reconcile IDB against the authoritative appdata sidecars BEFORE the first sweep, so an
+  // IDB wipe rebuilds cleanly and a cloud change fast-forwards instead of forking (invariant 6).
+  if (IS_TAURI) {
+    try {
+      const { reconcileDesktop } = await import('../desktopReconcile.js');
+      await reconcileDesktop({ adapter: _adapter, owner: _owner, provider: _provider });
+    } catch {}
+  }
   return _engine;
 }
 

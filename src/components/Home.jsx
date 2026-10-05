@@ -9,6 +9,9 @@ import { exportPdf }  from '../lib/pdf.js';
 import { publishShare, unpublishShare } from '../lib/share.js';
 import { getShareAccessToken } from '../lib/providerSession.js';
 import { encodeEntry, decodeEntry, hasVaultKey } from '../lib/localVault.js';
+import { mirrorProjectToAppData, removeProjectFromAppData, writeAppDataSidecar, saveBlobToDisk } from '../lib/desktopSave.js';
+import { IS_TAURI } from '../lib/platform.js';
+import AccountSecurity from './AccountSecurity.jsx';
 import { openDB } from '../lib/sync/store.js';   // single IDB opener (v4) — see store.js
 import { getEngine, getSyncBadges, resolveConflict, reassignFork } from '../lib/sync/client.js';
 import ConflictDialog from './ConflictDialog.jsx';
@@ -60,7 +63,7 @@ async function readTrashedFromIDB(ownerEmail) {
   } catch { return []; }
 }
 
-async function deleteFromIDB(id) {
+async function deleteFromIDB(id, ownerEmail) {
   try {
     const db = await openIDB();
     const tx = db.transaction(['projects', 'wordAssets', 'handles'], 'readwrite');
@@ -68,6 +71,7 @@ async function deleteFromIDB(id) {
     tx.objectStore('wordAssets').delete(id);
     tx.objectStore('handles').delete(id);
   } catch {}
+  if (ownerEmail) removeProjectFromAppData(ownerEmail, id);   // drop the durable on-disk copy too
 }
 
 // Mark an IDB entry as trashed (keeps the data so sync can push it as .trash)
@@ -96,13 +100,20 @@ async function markTrashedInIDB(id, project, ownerEmail) {
       tx2.objectStore('wordAssets').delete(id);
       tx2.objectStore('handles').delete(id);
     } catch {}
+    // Desktop (non-engine/local tier): KEEP the durable .oodbo file and mark it trashed in the sidecar,
+    // so the bin survives an IDB wipe (recoverAppDataToIdb reads the sidecar's trashed flag). Engine
+    // (Google) accounts trash via getEngine().trashProject → the sidecar adapter, and never reach here.
+    if (ownerEmail) {
+      mirrorProjectToAppData(ownerEmail, project);
+      writeAppDataSidecar(ownerEmail, id, { record: null, trashed: true, deletedAt: entry.deletedAt });
+    }
   } catch {}
 }
 
 // Engineless (unpaid / local-only) restore: flip trashed→false directly in IDB, mirror of
 // markTrashedInIDB. The sync engine has restoreProject(); users without an engine had no restore
 // path (handleRestore bailed on !eng), so the bin's Restore silently no-opped for them.
-async function restoreInIDB(id) {
+async function restoreInIDB(id, ownerEmail) {
   try {
     const db = await openIDB();
     const existing = await new Promise(res => {
@@ -117,6 +128,8 @@ async function restoreInIDB(id) {
       tx.objectStore('projects').put(entry);
       tx.oncomplete = res; tx.onerror = rej;
     });
+    // Desktop (non-engine): flip the sidecar back to active (the .oodbo file was kept on trash).
+    if (ownerEmail) writeAppDataSidecar(ownerEmail, id, { record: null, trashed: false, deletedAt: null });
     return true;
   } catch { return false; }
 }
@@ -132,6 +145,7 @@ async function writeProjectToIDB(project, ownerEmail) {
       tx.oncomplete = res;
       tx.onerror    = rej;
     });
+    mirrorProjectToAppData(ownerEmail, project);   // durable .oodbo on disk
   } catch {}
 }
 
@@ -211,7 +225,9 @@ function formatSyncAgo(iso) {
   } catch { return ''; }
 }
 
-function triggerBlobDownload(blob, filename) {
+async function triggerBlobDownload(blob, filename) {
+  // Tauri's webview ignores the <a download> trick — use a native Save dialog + fs write instead.
+  if (IS_TAURI) { await saveBlobToDisk(blob, filename); return; }
   const url = URL.createObjectURL(blob);
   const a   = document.createElement('a');
   a.href = url; a.download = filename; a.click();
@@ -262,6 +278,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
   const [deleteTarget,     setDeleteTarget]     = useState(null);
   const [syncBadges,       setSyncBadges]       = useState({});   // §8.2/§10 — derived from records at render
   const [conflictTarget,   setConflictTarget]   = useState(null);  // { projectId, forkId, original, conflicted }
+  const [secOpen,          setSecOpen]          = useState(false);  // PIN & recovery modal (desktop)
   const [expandedConflictId, setExpandedConflictId] = useState(null);  // which row's conflict tree is open
   const online = useOnline();
   // Idle → limbo. 'active' | 'prompt' (still here?) | 'screensaver' (the animation). Homepage
@@ -646,7 +663,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
         await eng.syncOne(f.projectId, { userInitiated: true });  // push now; the spinner covers this
       } else {
         // Engineless (unpaid / local-only): untrash directly in IDB — no cloud to push to.
-        restored = await restoreInIDB(f.projectId);
+        restored = await restoreInIDB(f.projectId, user?.email);
       }
     } catch { /* cloud push deferred (transient) — background sweeps retry it */ }
     finally {
@@ -689,7 +706,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
       await deactivateProjectShares(f.projectId);
       const eng = getEngine();
       if (eng) await eng.purgeProject(f.projectId);   // cloud file + local content + record + outbox
-      else     await deleteFromIDB(f.projectId);
+      else     await deleteFromIDB(f.projectId, user?.email);
       setBinProjects(prev => prev.filter(x => x.projectId !== f.projectId));
       setBinSearchData(prev => prev.filter(x => x.id !== f.projectId));  // leave the bin search results too
       setPermDeleteTarget(null);
@@ -711,7 +728,7 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
         // per-project purges raced the manifest and lost most tombstones (the "not 49 ids" bug).
         await eng.purgeProjects(targets.map(f => f.projectId)).catch(() => {});
       } else {
-        await Promise.all(targets.map(f => deleteFromIDB(f.projectId).catch(() => {})));
+        await Promise.all(targets.map(f => deleteFromIDB(f.projectId, user?.email).catch(() => {})));
       }
       const ids = new Set(targets.map(f => f.projectId));
       setBinProjects(prev => prev.filter(f => !ids.has(f.projectId)));
@@ -1143,8 +1160,10 @@ export default function Home({ user, onOpenProject, onNewProject, onSignOut, onS
           )}
         </span>
         <span style={s.userEmail}>{user?.name || user?.email?.split('@')[0]}</span>
+        {IS_TAURI && user && <button style={s.ghostBtn} title="PIN & recovery code" onClick={() => setSecOpen(true)}>recovery</button>}
         <button style={s.ghostBtn} onClick={onSignOut}>sign out</button>
       </header>
+      {secOpen && <AccountSecurity user={user} onClose={() => setSecOpen(false)} />}
 
       {/* Content — scrollable middle area */}
       <div style={s.scrollArea}>

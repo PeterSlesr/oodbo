@@ -22,9 +22,14 @@ import { exists, mkdir, writeFile, readTextFile } from '@tauri-apps/plugin-fs';
 const FILE      = 'accounts.json';
 const LS_MIRROR = 'fwd:desktop-accounts';
 
+export const MAX_PIN_ATTEMPTS = 5;
+
 export function sanitizeUsername(u) { return String(u || '').trim(); }
 export function localIdFor(username) { return 'local:' + sanitizeUsername(username).toLowerCase(); }
+export function googleIdFor(email)   { return 'google:' + String(email || '').toLowerCase(); }
 export function toLocalUser(acct)    { return { provider: null, email: acct.id, name: acct.username, local: true }; }
+// A registry row's display label (full, not masked — personal device; see accountCache rationale).
+export function accountLabel(acct)   { return acct.type === 'google' ? `Google · ${acct.email || ''}` : (acct.username || ''); }
 
 const empty = () => ({ version: 1, accounts: [], lastUsed: null });
 
@@ -98,9 +103,54 @@ export async function createLocalAccount({ username, secret = null }) {
   const reg = await loadRegistry();
   const id = localIdFor(name);
   if (reg.accounts.some(a => a.id === id)) throw new Error('username_taken');
-  const acct = { id, username: name, protected: !!secret, secret: secret || null, createdAt: new Date().toISOString() };
+  const acct = { id, type: 'local', username: name, protected: !!secret, secret: secret || null, failedAttempts: 0, createdAt: new Date().toISOString() };
   reg.accounts.push(acct);
   reg.lastUsed = id;
   await persist(reg);
   return acct;
+}
+
+// Remember a Google account in the "welcome back" list (upsert by email). `secret` (optional, Model-B
+// blob with the provider tokens cached inside) is set when the user protects it with a PIN later.
+export async function recordGoogleAccount({ email, secret = null }) {
+  if (!email) return null;
+  const reg = await loadRegistry();
+  const id  = googleIdFor(email);
+  let acct  = reg.accounts.find(a => a.id === id);
+  if (!acct) {
+    acct = { id, type: 'google', email, protected: !!secret, secret: secret || null, failedAttempts: 0, createdAt: new Date().toISOString() };
+    reg.accounts.push(acct);
+  } else if (secret !== null) {
+    acct.secret = secret; acct.protected = !!secret;
+  }
+  reg.lastUsed = id;
+  await persist(reg);
+  return acct;
+}
+
+export async function getAccount(id) {
+  return (await loadRegistry()).accounts.find(a => a.id === id) || null;
+}
+
+export async function removeAccount(id) {
+  const reg = await loadRegistry();
+  reg.accounts = reg.accounts.filter(a => a.id !== id);
+  if (reg.lastUsed === id) reg.lastUsed = reg.accounts[reg.accounts.length - 1]?.id ?? null;
+  await persist(reg);
+}
+
+// PIN attempt-limiting: 5 wrong tries locks the row (UI then steers to recovery / re-sign-in).
+export async function registerFailedUnlock(id) {
+  const reg = await loadRegistry();
+  const acct = reg.accounts.find(a => a.id === id);
+  if (!acct) return { count: 0, locked: false };
+  acct.failedAttempts = (acct.failedAttempts || 0) + 1;
+  await persist(reg);
+  return { count: acct.failedAttempts, locked: acct.failedAttempts >= MAX_PIN_ATTEMPTS };
+}
+
+export async function clearFailedUnlock(id) {
+  const reg = await loadRegistry();
+  const acct = reg.accounts.find(a => a.id === id);
+  if (acct && acct.failedAttempts) { acct.failedAttempts = 0; await persist(reg); }
 }

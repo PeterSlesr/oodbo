@@ -61,18 +61,32 @@ export default function App() {
     let cancelled = false;
     (async () => {
       if (IS_TAURI) {
-        // 1) Resume a Google session silently (desktop holds a refresh token).
-        try {
-          const u = await restoreSession();
-          if (!cancelled && u?.email) { await enterSignedIn(u); return; }
-        } catch { /* no/expired Google session */ }
-        // 2) Else auto-open the last-used OPEN local account (PIN-protected ones need the gate).
-        try {
-          const { getLastUsedAccount, toLocalUser } = await import('./lib/desktopAccounts.js');
-          const acct = await getLastUsedAccount();
-          if (!cancelled && acct && !acct.protected) { await enterSignedIn(toLocalUser(acct)); return; }
-        } catch { /* no local accounts yet */ }
-        // 3) Else fall through → setUser(false) renders the desktop login gate (no guest on desktop).
+        let last = null;
+        try { const { getLastUsedAccount } = await import('./lib/desktopAccounts.js'); last = await getLastUsedAccount(); } catch {}
+        // A protected Google account that was quit (not signed out) may still have plaintext Drive tokens
+        // in localStorage — clear them while it's locked at the gate (they're sealed in the account's
+        // secret and restored on PIN unlock), so nothing plaintext lingers for a locked account.
+        if (last?.protected && last.type === 'google') { try { localStorage.removeItem('fwd:desktop-provider-tokens'); } catch {} }
+        // A PIN-protected last account must be unlocked at the gate — never silent-restore past the PIN.
+        if (!last?.protected) {
+          // Google (or first run): resume silently from the refresh token if there is one.
+          if (!last || last.type === 'google') {
+            try { const u = await restoreSession(); if (!cancelled && u?.email) { await enterSignedIn(u); return; } } catch {}
+            // Offline / transient token: open the last Google account from its cached identity so it
+            // works offline LIKE LOCAL (sync resumes on reconnect). Only when there was a real session.
+            if (!cancelled && last?.type === 'google') {
+              try {
+                const cached = JSON.parse(localStorage.getItem('fwd:user') || 'null');
+                if (cached?.provider) { await enterSignedIn(cached); return; }
+              } catch {}
+            }
+          }
+          // Open local account: auto-open from disk (no cloud).
+          if (!cancelled && last && last.type === 'local') {
+            try { const { toLocalUser } = await import('./lib/desktopAccounts.js'); await enterSignedIn(toLocalUser(last)); return; } catch {}
+          }
+        }
+        // Else fall through → setUser(false) renders the desktop login gate (no guest on desktop).
       }
       if (!cancelled) setUser(false);
     })();
@@ -107,6 +121,10 @@ export default function App() {
     const me = { ...u };                          // free for everyone — no entitlement concept
     setUser(me);
     try { localStorage.setItem('fwd:user', JSON.stringify(me)); } catch {}
+    // Desktop: remember a Google account in the "welcome back" registry (fresh sign-in or boot restore).
+    if (IS_TAURI && me.provider === 'google') {
+      import('./lib/desktopAccounts.js').then(m => m.recordGoogleAccount({ email: me.email })).catch(() => {});
+    }
     setSyncReconnect(false);   // (re)authed — clear any "storage disconnected" banner
     // A guest who signs in should KEEP the writing they did as a guest — otherwise switching to
     // the account's own storage would orphan the in-tab draft (this bit the "share while guest"
@@ -124,29 +142,31 @@ export default function App() {
         onBadge:  () => setSyncTick(t => t + 1),
       },
     });
+    // Desktop LOCAL accounts have no engine, so client.js can't reconcile them — rebuild IDB from the
+    // durable appdata .oodbo files here (Google/cloud accounts are reconciled inside initSync via the
+    // sidecar adapter). An IDB wipe / fresh profile isn't data loss.
+    if (IS_TAURI && !me.provider) {
+      try { const { recoverAppDataToIdb } = await import('./lib/desktopReconcile.js'); await recoverAppDataToIdb(me.email); } catch {}
+    }
     await runMigration();
     await getEngine()?.sweepAll();
     setInitialSyncing(false);
     if (adoptGuest) { setOpenProjectId('adopt-guest'); setNewProjectType(null); setView('editor'); }
   }
 
-  async function handleProviderSignIn() {
+  async function handleProviderSignIn(hint) {
     let u;
     try {
-      // Pre-select the last account (from a prior session) so resuming is one click, no chooser.
-      let hint;
-      try { hint = JSON.parse(localStorage.getItem('fwd:user') || 'null')?.email; } catch {}
-      u = await providerSignIn(hint);             // { provider: 'google', email }
+      // Pre-select an account so resuming is one click, no chooser: an explicit hint (from the desktop
+      // picker row), else the last account from a prior session.
+      let h = hint;
+      if (!h) { try { h = JSON.parse(localStorage.getItem('fwd:user') || 'null')?.email; } catch {} }
+      u = await providerSignIn(h);                // { provider: 'google', email }
     } catch (e) {
       console.warn('sign-in cancelled/failed:', e);
       return;
     }
     await enterSignedIn(u);
-  }
-  // Desktop: enter a local (non-Google) account. No cloud, no engine (initSync returns null for a
-  // provider-less user) — just this machine's own owner-scoped storage.
-  async function handleLocalSignIn(localUser) {
-    await enterSignedIn(localUser);
   }
   async function handleSignOut() {
     try { await providerSignOut(); } catch (err) { console.warn('sign-out error:', err); }
@@ -273,7 +293,7 @@ export default function App() {
   if (IS_TAURI) {
     return (
       <React.Suspense fallback={null}>
-        <DesktopLogin onGoogle={handleProviderSignIn} onLocal={handleLocalSignIn} />
+        <DesktopLogin onGoogle={handleProviderSignIn} onEnter={enterSignedIn} />
       </React.Suspense>
     );
   }

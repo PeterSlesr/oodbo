@@ -77,6 +77,9 @@ export async function createSecret(pin) {
     wrappedByPin:      await wrapDek(dek, await deriveKEK(pin, pinSalt)),
     wrappedByRecovery: await wrapDek(dek, await deriveKEK(normCode(recoveryCode), recSalt)),
   };
+  // Also store the recovery code sealed under the DEK, so a logged-in user can re-view it behind their
+  // PIN (it can't be recovered from the wrapping alone). Does not weaken the recovery-reset path.
+  secret.recoveryShown = await sealObject(dek, recoveryCode);
   return { secret, recoveryCode, dek };
 }
 
@@ -88,6 +91,21 @@ export async function unlockWithPin(secret, pin) {
 export async function unlockWithRecovery(secret, code) {
   try { return await unwrapDek(secret.wrappedByRecovery, await deriveKEK(normCode(code), fromB64(secret.recSalt), secret.iter)); }
   catch { return null; }
+}
+
+// Seal/open an arbitrary object under an EXPLICIT key (the account's DEK) — used to cache a Google
+// account's provider tokens inside its secret blob, so a PIN unlock can restore them OFFLINE.
+export async function sealObject(key, obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encTxt.encode(JSON.stringify(obj)));
+  return { iv: toB64(iv), ct: toB64(ct) };
+}
+export async function openSealed(key, blob) {
+  if (!blob) return null;
+  try {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(blob.iv) }, key, fromB64(blob.ct));
+    return JSON.parse(decTxt.decode(pt));
+  } catch { return null; }
 }
 
 // Re-wrap the DEK under a NEW pin (recovery copy stays valid). Returns the updated secret.
@@ -108,6 +126,19 @@ async function encrypt(obj) {
 async function decrypt(blob) {
   const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(blob.iv) }, _dek, fromB64(blob.ct));
   return JSON.parse(decTxt.decode(pt));
+}
+
+// Text (file) variants — for the AppData .oodbo mirror. Returns a self-describing string: plaintext
+// XML when no vault is active (a real, readable .oodbo), or a TEXT_MAGIC-prefixed blob when it is.
+const TEXT_MAGIC = 'fwdvault1:';
+export async function encryptText(str) {
+  if (!_dek) return str;                                   // open/cloud-no-pin → readable .oodbo on disk
+  return TEXT_MAGIC + JSON.stringify(await encrypt(str));
+}
+export async function decryptText(blob) {
+  if (typeof blob !== 'string' || !blob.startsWith(TEXT_MAGIC)) return blob;   // plaintext file → as-is
+  if (!_dek) return null;                                  // encrypted file but locked → unreadable
+  try { return await decrypt(JSON.parse(blob.slice(TEXT_MAGIC.length))); } catch { return null; }
 }
 
 export async function encodeEntry(entry) {

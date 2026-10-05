@@ -47,6 +47,7 @@ function VersionCard({ label, project, onKeep, disabled }) {
 export default function ConflictDialog({ original, conflicted, onResolve, onLater }) {
   const [reviewing, setReviewing] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const scheme = (() => { try { return localStorage.getItem('fwd:crt-scheme') || 'green'; } catch { return 'green'; } })();
 
   async function choose(choice) {
     setResolving(true);
@@ -68,10 +69,10 @@ export default function ConflictDialog({ original, conflicted, onResolve, onLate
   }
 
   return (
-    <div style={s.wrap}>
+    <div style={s.wrap} data-scheme={scheme} className="crt-scanlines crt-vignette">
       <BodyScrollLock />
       <div style={s.box}>
-        <h1 style={s.brand}>Forward Only</h1>
+        <h1 style={s.brand}>FORWARD&nbsp;ONLY</h1>
         <p style={s.sub}>
           This project was edited in two places before they could sync — pick which version to keep.
           Both are already saved, so nothing is lost either way.
@@ -104,20 +105,20 @@ const s = {
   wrap: {
     position: 'fixed', inset: 0, zIndex: 900, overflowY: 'auto',
     minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: '#f5f2eb', padding: 20,
+    background: 'var(--bg)', padding: 20,
   },
-  box:   { width: '100%', maxWidth: 640 },
-  brand: { fontFamily: 'Georgia, serif', fontSize: 28, fontWeight: 'normal', letterSpacing: '-0.02em', color: '#111', marginBottom: 4 },
-  sub:   { fontFamily: 'Georgia, serif', fontSize: 13, color: '#666', fontStyle: 'italic', lineHeight: 1.6 },
-  divider: { borderTop: '1px solid #ddd6c9', margin: '16px 0' },
+  box:   { width: '100%', maxWidth: 640, color: 'var(--tx)', fontFamily: 'var(--fm)' },
+  brand: { fontFamily: 'var(--fd)', fontSize: 34, letterSpacing: 2, color: 'var(--ph)', textShadow: 'var(--glow)', marginBottom: 4 },
+  sub:   { fontFamily: 'var(--fm)', fontSize: 13, color: 'var(--tx-faint)', lineHeight: 1.6 },
+  divider: { borderTop: '1px solid var(--bd)', margin: '16px 0' },
   cards: { display: 'flex', gap: 16, flexWrap: 'wrap' },
-  card:  { flex: '1 1 260px', border: '1px solid #ddd6c9', background: '#fff', padding: '14px 16px' },
-  cardLabel: { fontFamily: 'Georgia, serif', fontSize: 11, color: '#888', fontStyle: 'italic', marginBottom: 4 },
-  cardTitle: { fontFamily: 'Georgia, serif', fontSize: 16, color: '#111', marginBottom: 6 },
-  cardMeta:  { fontFamily: 'Georgia, serif', fontSize: 12, color: '#666', marginBottom: 2 },
-  reviewBtn: { fontFamily: 'Georgia, serif', fontSize: 13, width: '100%', padding: '9px 12px', background: '#faf8f2', color: '#111', border: '1px solid #ddd6c9', cursor: 'pointer', marginTop: 16 },
-  keepBtn:   { fontFamily: 'Georgia, serif', fontSize: 13, width: '100%', padding: '8px 12px', background: '#111', color: '#fff', border: '1px solid #111', cursor: 'pointer' },
-  bothBtn:   { fontFamily: 'Georgia, serif', fontSize: 13, width: '100%', padding: '9px 12px', background: '#fff', color: '#111', border: '1px solid #111', cursor: 'pointer', marginTop: 16 },
-  hint:      { fontFamily: 'Georgia, serif', fontSize: 11, color: '#999', fontStyle: 'italic', marginTop: 6, textAlign: 'center' },
-  later:     { fontFamily: 'Georgia, serif', fontSize: 11.5, color: '#999', fontStyle: 'italic', background: 'none', border: 'none', cursor: 'pointer', display: 'block', margin: '14px auto 0' },
+  card:  { flex: '1 1 260px', border: '1px solid var(--bd)', background: 'var(--bg2)', padding: '14px 16px' },
+  cardLabel: { fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)', letterSpacing: 1, marginBottom: 4 },
+  cardTitle: { fontFamily: 'var(--fm)', fontSize: 16, color: 'var(--tx)', marginBottom: 6 },
+  cardMeta:  { fontFamily: 'var(--fm)', fontSize: 12, color: 'var(--tx-dim)', marginBottom: 2 },
+  reviewBtn: { fontFamily: 'var(--fm)', fontSize: 13, width: '100%', padding: '9px 12px', background: 'transparent', color: 'var(--tx)', border: '1px solid var(--bd)', cursor: 'pointer', marginTop: 16 },
+  keepBtn:   { fontFamily: 'var(--fm)', fontSize: 13, width: '100%', padding: '8px 12px', background: 'transparent', color: 'var(--ph)', border: '1px solid var(--ph-dim)', cursor: 'pointer' },
+  bothBtn:   { fontFamily: 'var(--fm)', fontSize: 13, width: '100%', padding: '9px 12px', background: 'transparent', color: 'var(--tx)', border: '1px solid var(--bd)', cursor: 'pointer', marginTop: 16 },
+  hint:      { fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)', marginTop: 6, textAlign: 'center' },
+  later:     { fontFamily: 'var(--fm)', fontSize: 11.5, color: 'var(--tx-faint)', background: 'none', border: 'none', cursor: 'pointer', display: 'block', margin: '14px auto 0' },
 };

@@ -20,6 +20,7 @@
 // A draft still present at startup therefore means the last session did not exit cleanly —
 // that presence is the recovery signal, no flags needed.
 import { openDB } from './sync/store.js';
+import { encryptText, decryptText } from './localVault.js';
 
 const PREFIX = 'forwardDraft:';
 const keyFor = (projectId, chapterId) => `${PREFIX}${projectId}:${chapterId}`;
@@ -32,9 +33,12 @@ function reqToPromise(req) {
 export async function saveForwardDraft(draft) {
   try {
     const db = await openDB();
+    // Encrypt the in-progress text for a PIN account (syncMeta isn't covered by the projects codec);
+    // pass-through plaintext for web / open accounts. Keyed fields stay clear for enumeration.
+    const text = await encryptText(draft.text || '');
     await new Promise((res, rej) => {
       const tx = db.transaction('syncMeta', 'readwrite');
-      tx.objectStore('syncMeta').put({ key: keyFor(draft.projectId, draft.chapterId), value: { ...draft, updatedAt: Date.now() } });
+      tx.objectStore('syncMeta').put({ key: keyFor(draft.projectId, draft.chapterId), value: { ...draft, text, updatedAt: Date.now() } });
       tx.oncomplete = res; tx.onerror = () => rej(tx.error);
     });
   } catch { /* best-effort buffer — a failed write just narrows the recovery window */ }
@@ -61,6 +65,7 @@ export async function loadForwardDraft(projectId) {
       typeof r.key === 'string' && r.key.startsWith(`${PREFIX}${projectId}:`) && r.value?.text?.trim());
     if (!mine.length) return null;
     mine.sort((a, b) => (b.value.updatedAt || 0) - (a.value.updatedAt || 0));
-    return mine[0].value;
+    const v = mine[0].value;
+    return { ...v, text: await decryptText(v.text) };   // decrypts a PIN account's draft; plaintext as-is
   } catch { return null; }
 }

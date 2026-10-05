@@ -48,23 +48,22 @@ export default function ConflictTree({ original, forks }) {
 
 const s = {
   panel: {
-    background: '#f6efd9',
-    border: '1px solid #e6d9a8',
-    borderRadius: 3,
+    background: 'var(--bg2)',
+    border: '1px solid var(--bd)',
     padding: '12px 14px',
     margin: '2px 0 6px',
   },
   head: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 },
-  dot: { width: 7, height: 7, borderRadius: '50%', background: '#C88A15', flexShrink: 0 },
-  headText: { fontFamily: 'Georgia, serif', fontSize: 13, color: '#8a6d1f', fontWeight: 'bold' },
+  dot: { width: 7, height: 7, borderRadius: '50%', background: 'var(--ph)', boxShadow: 'var(--glow)', flexShrink: 0 },
+  headText: { fontFamily: 'var(--fm)', fontSize: 13, color: 'var(--ph)', letterSpacing: 0.5 },
   trunk: { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0' },
   branch: { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', paddingLeft: 14 },
-  glyph: { fontFamily: 'monospace', fontSize: 13, color: '#b09a5a' },
-  name: { fontFamily: 'Georgia, serif', fontSize: 13, color: '#3a3320' },
-  meta: { fontFamily: 'Georgia, serif', fontSize: 11, color: '#9a8a5a', fontStyle: 'italic' },
+  glyph: { fontFamily: 'var(--fm)', fontSize: 13, color: 'var(--tx-faint)' },
+  name: { fontFamily: 'var(--fm)', fontSize: 13, color: 'var(--tx)' },
+  meta: { fontFamily: 'var(--fm)', fontSize: 11, color: 'var(--tx-faint)' },
   spacer: { flex: 1 },
   compareBtn: {
-    fontFamily: 'Georgia, serif', fontSize: 12, background: '#fff', border: '1px solid #ddd6c9',
-    color: '#111', cursor: 'pointer', padding: '3px 10px', whiteSpace: 'nowrap',
+    fontFamily: 'var(--fm)', fontSize: 12, background: 'transparent', border: '1px solid var(--bd)',
+    color: 'var(--tx)', cursor: 'pointer', padding: '3px 10px', whiteSpace: 'nowrap',
   },
 };

@@ -146,13 +146,20 @@ function projectEntry(project, owner, { trashed = false, pendingSync = false, la
 }
 
 // ── The adapter (SEAM #1 web implementation) ────────────────────────────────────
-export function createIdbAdapter() {
+// `codec` (optional) transparently transforms the stored ENTRY on the way in/out of the projects
+// store — used on desktop to encrypt a PIN account's project data at rest (localVault encodeEntry/
+// decodeEntry). It defaults to identity, so the web app (which never passes one) is byte-for-byte
+// unchanged. The engine always sees decoded (plaintext) entries; IndexedDB holds the codec's output.
+const IDENTITY_CODEC = { encode: (e) => e, decode: (e) => e };
+export function createIdbAdapter(codec = IDENTITY_CODEC) {
   const withDB = async fn => fn(await openDB());
+  const enc = async (entry) => await codec.encode(entry);
+  const dec = async (entry) => (entry == null ? entry : await codec.decode(entry));
 
   return {
     // ---- content (projects store) ----
     async getProjectEntry(projectId) {
-      return withDB(db => reqToPromise(db.transaction('projects', 'readonly').objectStore('projects').get(projectId)));
+      return dec(await withDB(db => reqToPromise(db.transaction('projects', 'readonly').objectStore('projects').get(projectId))));
     },
     async getProject(projectId) {
       const e = await this.getProjectEntry(projectId);
@@ -160,12 +167,14 @@ export function createIdbAdapter() {
     },
     async getAllProjectEntries(owner) {
       const all = await withDB(db => reqToPromise(db.transaction('projects', 'readonly').objectStore('projects').getAll()));
-      return owner == null ? all : all.filter(e => (e.owner || '') === owner);
+      const mine = owner == null ? all : all.filter(e => (e.owner || '') === owner);
+      return Promise.all(mine.map(dec));
     },
     async putProject(project, owner, opts) {
+      const entry = await enc(projectEntry(project, owner, opts));
       return withDB(async db => {
         const tx = db.transaction('projects', 'readwrite');
-        tx.objectStore('projects').put(projectEntry(project, owner, opts));
+        tx.objectStore('projects').put(entry);
         return txDone(tx);
       });
     },
@@ -198,9 +207,10 @@ export function createIdbAdapter() {
     // crash between them could make fast-forward look like a conflict. One transaction
     // spanning both stores guarantees all-or-nothing.
     async commitProjectAndRecord(project, owner, record, opts) {
+      const entry = await enc(projectEntry(project, owner, opts));
       return withDB(async db => {
         const tx = db.transaction(['projects', 'syncRecords'], 'readwrite');
-        tx.objectStore('projects').put(projectEntry(project, owner, opts));
+        tx.objectStore('projects').put(entry);
         tx.objectStore('syncRecords').put(record);
         return txDone(tx);
       });

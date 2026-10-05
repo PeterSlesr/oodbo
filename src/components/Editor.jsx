@@ -25,6 +25,9 @@ import { exportPdf }  from '../lib/pdf.js';
 import { publishShare, unpublishShare } from '../lib/share.js';
 import { getShareAccessToken } from '../lib/providerSession.js';
 import { encodeEntry, decodeEntry, hasVaultKey } from '../lib/localVault.js';
+import { mirrorProjectToAppData, saveBlobToDisk } from '../lib/desktopSave.js';
+import { IS_TAURI } from '../lib/platform.js';
+import AccountSecurity from './AccountSecurity.jsx';
 import JSZip from 'jszip';
 import { loadGuestDraft, saveGuestDraft, clearGuestDraft } from '../lib/guestStore.js';
 import { openDB } from '../lib/sync/store.js';   // single IDB opener (v4) — see store.js
@@ -359,6 +362,7 @@ async function saveProjectToIDB(project, { pendingSync = true, lastSynced = null
       tx.objectStore('projects').put(entry);
       tx.oncomplete = res; tx.onerror = rej;
     });
+    mirrorProjectToAppData(owner, project);   // durable .oodbo on disk (desktop; encrypted for a vault account)
   } catch {}
 }
 
@@ -993,6 +997,7 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   const [markerYs,    setMarkerYs]    = useState({});
   const [copiedId,    setCopiedId]    = useState(null);
   const [shareModal,   setShareModal]   = useState(false);  // share dialog open
+  const [secOpen,      setSecOpen]      = useState(false);  // PIN & recovery modal (desktop)
   const [shareLinks,    setShareLinks]    = useState({});  // { [shareKey]: driveUrl } — derived from project.shares
   const [shareLoading,  setShareLoading]  = useState(null);   // share key currently creating/updating
   const [shareCopied,   setShareCopied]   = useState(null);   // share id just copied
@@ -1047,7 +1052,9 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
   // is ephemeral, so an export is their way to keep it. No "export all": there's
   // only one project in this context.
   const exportSafeName = (t) => (t || 'oodbo').replace(/[^a-z0-9]/gi, '-');
-  function downloadBlob(blob, filename) {
+  async function downloadBlob(blob, filename) {
+    // Tauri's webview ignores the <a download> trick — use a native Save dialog + fs write instead.
+    if (IS_TAURI) { await saveBlobToDisk(blob, filename); return; }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename; a.click();
@@ -3328,12 +3335,16 @@ export default function Editor({ user, onSignIn, onSignOut, onGoHome = null, wel
                     onClick={() => { setTourPromptOpen(false); setTourSkipped(false); setTourStep(0); }}
                   >tour</button>
                 )}
+                {IS_TAURI && user && !isReadOnly && (
+                  <button style={{ ...s.sideFileBtn, color: th.chromeFaint }} title="PIN & recovery" onClick={() => setSecOpen(true)}>PIN</button>
+                )}
                 {user && (
                   <button style={{ ...s.sideFileBtn, color: th.chromeFaint }} onClick={requestSignOut}>sign out</button>
                 )}
               </span>
             </div>
           )}
+          {secOpen && <AccountSecurity user={user} onClose={() => setSecOpen(false)} />}
           {isMobile && (
             <div style={{ padding: '4px 12px 10px', display: 'flex', gap: 8 }}>
               {footerLinksEl}
